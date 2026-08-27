@@ -54,6 +54,24 @@ export function StudentDashboard() {
         <StatCard icon="layers" label="Chapters completed" value={chaptersDone} tint="violet" sub="Every tick counts towards a certificate." />
       </div>
 
+      {/* empty shelf */}
+      {myEnrolments.length === 0 && (
+        <div className="mt-8 rounded-3xl border border-slate-200/80 bg-white p-10 text-center shadow-soft">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+            <Icon name="book-open" className="h-7 w-7" />
+          </span>
+          <h3 className="mt-4 text-lg font-bold text-slate-900">Your learning shelf is clean</h3>
+          <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+            You haven&apos;t enrolled in any courses yet. Explore the course catalog to start learning from chapter 1 with 0% progress.
+          </p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Button iconRight="arrow-right" onClick={() => navigate({ page: 'catalog' })}>
+              Browse course catalog
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* continue learning */}
       {recentCourse && recentProgress && (
         <div className="mt-8 overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-slate-900/5">

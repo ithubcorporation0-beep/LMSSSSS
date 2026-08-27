@@ -4,7 +4,7 @@ import type { AppData, Category, CategoryIcon, Certificate, Chapter, Course, Cou
 import { buildSeedData, DEMO_ADMIN_ID, DEMO_STUDENT_ID, DEMO_TEACHER_ID } from './data/seed';
 import { makeCode, nowISO, uid } from './lib';
 
-const STORAGE_KEY = 'eduflow-state-v2';
+const STORAGE_KEY = 'eduflow-state-clean-v3';
 
 interface PersistedShape {
   v: number;
@@ -14,18 +14,18 @@ interface PersistedShape {
 }
 
 function loadPersisted(): PersistedShape {
-  const fallback: PersistedShape = { v: 2, role: 'student', route: { page: 'home' }, data: buildSeedData() };
+  const fallback: PersistedShape = { v: 3, role: 'student', route: { page: 'home' }, data: buildSeedData() };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<PersistedShape>;
-    if (parsed.v !== 2 || !parsed.data) return fallback;
+    if (parsed.v !== 3 || !parsed.data) return fallback;
     const d = parsed.data;
     if (!Array.isArray(d.categories) || !Array.isArray(d.courses) || !Array.isArray(d.users) || !Array.isArray(d.enrolments) || !Array.isArray(d.certificates)) {
       return fallback;
     }
     return {
-      v: 2,
+      v: 3,
       role: parsed.role === 'teacher' || parsed.role === 'admin' ? parsed.role : 'student',
       route: parsed.route ?? { page: 'home' },
       data: d,
@@ -117,9 +117,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // persist everything; reset works with a plain state change — no reload needed
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 2, role, route, data }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 3, role, route, data }));
     } catch {
-      /* storage unavailable — demo still works in memory */
+      /* storage unavailable */
     }
   }, [data, role, route]);
 

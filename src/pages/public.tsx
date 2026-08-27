@@ -94,10 +94,10 @@ export function HomePage() {
   const totalStudents = data.users.filter((u) => u.role === 'student').length;
 
   const stats = [
-    { icon: 'book-open' as const, value: String(published.length), label: 'Expert-led courses' },
-    { icon: 'layers' as const, value: `${totalChapters}`, label: 'Bite-sized chapters' },
-    { icon: 'users' as const, value: String(totalStudents), label: 'Active learners' },
-    { icon: 'award' as const, value: String(data.certificates.length), label: 'Certificates earned' },
+    { icon: 'book-open' as const, value: String(published.length), label: 'Published courses' },
+    { icon: 'layers' as const, value: `${totalChapters}`, label: 'Course chapters' },
+    { icon: 'users' as const, value: String(totalStudents), label: 'Registered learners' },
+    { icon: 'award' as const, value: String(data.certificates.length), label: 'Certificates awarded' },
   ];
 
   const steps = [
@@ -118,28 +118,25 @@ export function HomePage() {
     },
   ];
 
-  const testimonials = [
+  const features = [
     {
-      name: 'Aisha Bello',
-      role: 'Startup founder, Lagos',
-      quote: 'I went from opening a spreadsheet in a panic to actually understanding our burn rate and runway. The chapter-by-chapter format made finance finally stick.',
-      course: 'Startup Finance for First-Time Founders',
+      icon: 'layers' as const,
+      title: 'Bite-Sized Chapters',
+      text: 'Focused, step-by-step video & text lessons designed for high completion rates and immediate retention.',
     },
     {
-      name: 'Hana Yoshida',
-      role: 'Junior developer, Osaka',
-      quote: 'Finished my first JavaScript course in two weeks, mostly on the train. The certificate went straight onto my résumé — and came up in my interview.',
-      course: 'JavaScript Essentials for Complete Beginners',
+      icon: 'grad-cap' as const,
+      title: 'Teacher Studio',
+      text: 'Complete course authoring suite with drag-and-drop chapters, free preview toggles, and live learner tracking.',
     },
     {
-      name: 'Tomás Rivera',
-      role: 'Freelance designer, Mexico City',
-      quote: 'Sofia’s Figma course is the first one that taught me a system instead of tricks. I showed the prototype chapter to a client and won the project.',
-      course: 'UI Design Foundations with Figma',
+      icon: 'award' as const,
+      title: 'Verifiable Certificates',
+      text: 'Unique, cryptographically coded certificates automatically generated once a student finishes 100% of a course.',
     },
   ];
 
-  const heroCourse = published.find((c) => c.id === 'c_react') ?? published[0];
+  const heroCourse = published[0];
 
   return (
     <div className="overflow-x-clip">
@@ -153,39 +150,29 @@ export function HomePage() {
 
         <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 pb-16 pt-12 sm:px-6 lg:grid-cols-2 lg:pb-24 lg:pt-20">
           <div className="animate-fade-up">
-            <Badge tone="indigo" icon="sparkles" className="mb-5">Free courses, taught by working professionals</Badge>
+            <Badge tone="indigo" icon="sparkles" className="mb-5">Clean &amp; Modern Learning Management System</Badge>
             <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight text-slate-900 sm:text-5xl lg:text-[3.4rem]">
               Learn anything,{' '}
               <span className="bg-gradient-to-r from-indigo-600 to-violet-500 bg-clip-text text-transparent">one chapter</span>{' '}
               at a time.
             </h1>
             <p className="mt-5 max-w-lg text-lg leading-relaxed text-slate-600">
-              EduFlow turns expert knowledge into short, satisfying lessons. Enrol for free, track your progress, and earn a certificate you can actually show off.
+              EduFlow gives you a clean slate for creating, teaching, and learning. Enrol in courses, track real progress from zero, and earn verifiable certificates.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Button size="lg" iconRight="arrow-right" onClick={() => navigate({ page: 'catalog' })}>
-                Browse courses
+                Browse catalog
               </Button>
               <Button size="lg" variant="secondary" icon="grad-cap" onClick={() => switchRole('teacher')}>
-                Become a teacher
+                Create a course
               </Button>
-            </div>
-            <div className="mt-10 flex items-center gap-4">
-              <div className="flex -space-x-2.5">
-                {['Maya Chen', 'Lucas Meyer', 'Priya Sharma', 'Hana Yoshida', 'Sam Adeyemi'].map((n) => (
-                  <Avatar key={n} name={n} size="sm" className="ring-2 ring-white" />
-                ))}
-              </div>
-              <p className="text-sm leading-snug text-slate-500">
-                Joined by <span className="font-bold text-slate-800">{totalStudents} learners</span> this month
-              </p>
             </div>
           </div>
 
-          {/* hero mock player */}
-          {heroCourse ? (
-            <div className="relative hidden lg:block animate-fade-up" style={{ animationDelay: '120ms' }}>
-              <div className="relative mx-auto max-w-md">
+          {/* hero preview player / clean card */}
+          <div className="relative hidden lg:block animate-fade-up" style={{ animationDelay: '120ms' }}>
+            <div className="relative mx-auto max-w-md">
+              {heroCourse ? (
                 <div className="overflow-hidden rounded-3xl bg-white shadow-2xl shadow-indigo-950/10 ring-1 ring-slate-900/10">
                   <div className="relative aspect-[16/10] bg-slate-900">
                     {heroCourse.coverImage ? (
@@ -203,7 +190,7 @@ export function HomePage() {
                       </button>
                     </div>
                     <span className="absolute left-4 top-4 rounded-full bg-black/50 px-3 py-1 text-xs font-bold text-white backdrop-blur">
-                      {heroCourse.chapters[2]?.title ? `Chapter 3 · ${heroCourse.chapters[2].title}` : heroCourse.title}
+                      {heroCourse.chapters[0]?.title ? `Chapter 1 · ${heroCourse.chapters[0].title}` : heroCourse.title}
                     </span>
                   </div>
                   <div className="p-5">
@@ -214,37 +201,51 @@ export function HomePage() {
                           {data.users.find((u) => u.id === heroCourse.teacherId)?.name ?? 'Instructor'} · {heroCourse.chapters.length} chapters
                         </p>
                       </div>
-                      <Badge tone="emerald" icon="check-circle">3 of {Math.max(3, heroCourse.chapters.length)} done</Badge>
-                    </div>
-                    <ProgressBar value={50} className="mt-4" />
-                    <div className="mt-3 flex items-center justify-between text-xs font-semibold text-slate-400">
-                      <span>50% complete</span>
-                      <span className="inline-flex items-center gap-1"><Icon name="clock" className="h-3.5 w-3.5" /> 8 min left today</span>
+                      <Badge tone="indigo">Published</Badge>
                     </div>
                   </div>
                 </div>
-
-                <div className="absolute -left-10 -top-6 flex items-center gap-2.5 rounded-2xl bg-white px-4 py-3 shadow-xl ring-1 ring-slate-900/5 animate-float">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-50 text-amber-500">
-                    <Icon name="award" className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">Certificate unlocked</p>
-                    <p className="text-[11px] text-slate-400">JavaScript Essentials</p>
+              ) : (
+                <div className="overflow-hidden rounded-3xl bg-white p-7 shadow-2xl shadow-indigo-950/10 ring-1 ring-slate-900/10 text-left">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+                      <Icon name="book-open" className="h-6 w-6" />
+                    </span>
+                    <div>
+                      <h3 className="font-bold text-slate-900">Clean Slate Ready</h3>
+                      <p className="text-xs text-slate-400">No mock enrolments or pre-watched courses</p>
+                    </div>
                   </div>
-                </div>
-                <div className="absolute -bottom-6 -right-8 flex items-center gap-2.5 rounded-2xl bg-white px-4 py-3 shadow-xl ring-1 ring-slate-900/5 animate-float" style={{ animationDelay: '1.2s' }}>
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-500">
-                    <Icon name="zap" className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">6-day streak</p>
-                    <p className="text-[11px] text-slate-400">Keep it up, Maya</p>
+                  <div className="mt-6 space-y-3">
+                    <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-700">
+                      <span className="flex items-center gap-2">
+                        <Icon name="check-circle" className="h-4 w-4 text-emerald-500" />
+                        0 pre-watched chapters
+                      </span>
+                      <Badge tone="emerald">Fresh</Badge>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-700">
+                      <span className="flex items-center gap-2">
+                        <Icon name="check-circle" className="h-4 w-4 text-emerald-500" />
+                        Interactive learning tracker
+                      </span>
+                      <Badge tone="indigo">Ready</Badge>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-700">
+                      <span className="flex items-center gap-2">
+                        <Icon name="check-circle" className="h-4 w-4 text-emerald-500" />
+                        Automatic certificate issuance
+                      </span>
+                      <Badge tone="amber">Active</Badge>
+                    </div>
                   </div>
+                  <Button className="mt-6 w-full" icon="plus" onClick={() => switchRole('teacher')}>
+                    Create your first course
+                  </Button>
                 </div>
-              </div>
+              )}
             </div>
-          ) : null}
+          </div>
         </div>
       </section>
 
@@ -291,8 +292,8 @@ export function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mb-8 text-center">
             <Badge tone="violet" icon="tag" className="mb-3">Browse by topic</Badge>
-            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">What do you want to learn?</h2>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">Five fields, taught by people who work in them every day. Pick one and start tonight.</p>
+            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Course Categories</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">Pick a category to discover published courses or create a course under any topic.</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {data.categories.map((cat) => {
@@ -317,55 +318,22 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* ── How it works ── */}
+      {/* ── Features ── */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:py-20">
         <div className="mb-10 text-center">
-          <Badge tone="indigo" icon="sparkles" className="mb-3">How it works</Badge>
-          <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">From curious to certified in three steps</h2>
+          <Badge tone="indigo" icon="sparkles" className="mb-3">Built for focused learning</Badge>
+          <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">How EduFlow works</h2>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
-          {steps.map((step, i) => (
-            <div key={step.title} className="relative overflow-hidden rounded-2xl bg-white p-7 shadow-soft ring-1 ring-slate-900/5">
-              <span className="absolute -right-2 -top-5 text-[7rem] font-extrabold leading-none text-slate-50 select-none" aria-hidden="true">
-                {i + 1}
-              </span>
+          {features.map((item) => (
+            <div key={item.title} className="relative overflow-hidden rounded-2xl bg-white p-7 shadow-soft ring-1 ring-slate-900/5">
               <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/25">
-                <Icon name={step.icon} className="h-5.5 w-5.5" />
+                <Icon name={item.icon} className="h-5.5 w-5.5" />
               </span>
-              <h3 className="relative mt-5 text-lg font-bold text-slate-900">{step.title}</h3>
-              <p className="relative mt-2 text-sm leading-relaxed text-slate-500">{step.text}</p>
+              <h3 className="relative mt-5 text-lg font-bold text-slate-900">{item.title}</h3>
+              <p className="relative mt-2 text-sm leading-relaxed text-slate-500">{item.text}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* ── Testimonials ── */}
-      <section className="bg-white py-16 lg:py-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="mb-10 text-center">
-            <Badge tone="emerald" icon="users" className="mb-3">Learner stories</Badge>
-            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">People are finishing — and moving forward</h2>
-          </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            {testimonials.map((t) => (
-              <figure key={t.name} className="flex flex-col rounded-2xl bg-slate-50 p-7 ring-1 ring-slate-900/5">
-                <div className="flex gap-0.5 text-amber-400">
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <Icon key={i} name="star" className="h-4 w-4 fill-current" strokeWidth={0} />
-                  ))}
-                </div>
-                <blockquote className="mt-4 flex-1 text-sm leading-relaxed text-slate-700">“{t.quote}”</blockquote>
-                <figcaption className="mt-6 flex items-center gap-3 border-t border-slate-200/70 pt-5">
-                  <Avatar name={t.name} size="md" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-900">{t.name}</p>
-                    <p className="truncate text-xs text-slate-400">{t.role}</p>
-                  </div>
-                </figcaption>
-                <p className="mt-3 truncate text-[11px] font-semibold text-indigo-500">Completed: {t.course}</p>
-              </figure>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -376,10 +344,10 @@ export function HomePage() {
           <div className="pointer-events-none absolute -bottom-24 left-1/3 h-72 w-72 rounded-full bg-violet-400/30 blur-3xl" />
           <div className="relative flex flex-col items-start gap-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-xl">
-              <Badge className="mb-4 bg-white/15 text-white ring-white/25" icon="grad-cap">Teach on EduFlow</Badge>
-              <h2 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">You know something worth teaching.</h2>
+              <Badge className="mb-4 bg-white/15 text-white ring-white/25" icon="grad-cap">Teacher Studio</Badge>
+              <h2 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">Create your own course today.</h2>
               <p className="mt-3 text-sm leading-relaxed text-indigo-100 sm:text-base">
-                Turn your hard-won experience into a course people actually finish. Draft chapters, drag them into order, publish when you are ready — and watch real students make real progress.
+                Draft chapters, add what students will learn, publish to the catalog, and track real learner progress.
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
@@ -389,9 +357,8 @@ export function HomePage() {
                 iconRight="arrow-right"
                 onClick={() => switchRole('teacher')}
               >
-                Open the teacher studio
+                Open teacher studio
               </Button>
-              <p className="text-center text-xs font-semibold text-indigo-200">Free to publish · keep your students forever</p>
             </div>
           </div>
         </div>

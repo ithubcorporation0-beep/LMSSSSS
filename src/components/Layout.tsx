@@ -36,9 +36,9 @@ const NAVS: Record<Role, NavItem[]> = {
 };
 
 const ROLE_META: Record<Role, { label: string; icon: IconName; dot: string; who: string }> = {
-  student: { label: 'Student', icon: 'user', dot: 'bg-emerald-500', who: 'Maya Chen' },
-  teacher: { label: 'Teacher', icon: 'grad-cap', dot: 'bg-indigo-500', who: 'Daniel Okafor' },
-  admin: { label: 'Admin', icon: 'shield', dot: 'bg-violet-500', who: 'Ava Lindqvist' },
+  student: { label: 'Student', icon: 'user', dot: 'bg-emerald-500', who: 'Student Account' },
+  teacher: { label: 'Teacher', icon: 'grad-cap', dot: 'bg-indigo-500', who: 'Instructor Studio' },
+  admin: { label: 'Admin', icon: 'shield', dot: 'bg-violet-500', who: 'Platform Admin' },
 };
 
 export function RoleSwitcher() {
@@ -64,7 +64,7 @@ export function RoleSwitcher() {
 
   return (
     <div ref={ref} className="relative flex items-center gap-2" data-no-print>
-      <span className="hidden text-[11px] font-semibold uppercase tracking-wider text-slate-400 sm:inline">Demo: view as</span>
+      <span className="hidden text-[11px] font-semibold uppercase tracking-wider text-slate-400 sm:inline">Role</span>
       <button
         onClick={() => setOpen((o) => !o)}
         className={cn(
@@ -73,7 +73,7 @@ export function RoleSwitcher() {
         )}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Demo: view as — switch role"
+        aria-label="Switch account role"
       >
         <span className={cn('h-2 w-2 rounded-full', meta.dot)} />
         <span>{meta.label}</span>
@@ -82,7 +82,7 @@ export function RoleSwitcher() {
 
       {open && (
         <div className="absolute right-0 top-full z-50 mt-2 w-64 origin-top-right animate-scale-in overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-slate-900/10" role="menu">
-          <p className="border-b border-slate-100 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">Demo: view as</p>
+          <p className="border-b border-slate-100 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">Switch role</p>
           {(Object.keys(ROLE_META) as Role[]).map((r) => {
             const m = ROLE_META[r];
             const active = r === role;
@@ -117,7 +117,7 @@ export function RoleSwitcher() {
               className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
             >
               <Icon name="reset" className="h-4 w-4" />
-              Reset demo data
+              Clear all platform data
             </button>
           </div>
         </div>
@@ -258,14 +258,14 @@ function Footer() {
             </span>
           </div>
           <p className="mt-4 max-w-xs text-sm leading-relaxed text-slate-500">
-            Free, expert-led courses taught in bite-sized chapters. Learn at your own pace and earn a certificate when you finish.
+            A clean, modern Learning Management System. Build structured courses, enrol learners, track live progress, and award certificates.
           </p>
         </div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Explore</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Navigation</p>
           <ul className="mt-4 space-y-2.5 text-sm font-semibold text-slate-600">
             <li><button className="transition hover:text-indigo-600" onClick={() => navigate({ page: 'home' })}>Home</button></li>
-            <li><button className="transition hover:text-indigo-600" onClick={() => navigate({ page: 'catalog' })}>Course catalog</button></li>
+            <li><button className="transition hover:text-indigo-600" onClick={() => navigate({ page: 'catalog' })}>Course Catalog</button></li>
             <li>
               <button
                 className="transition hover:text-indigo-600"
@@ -273,25 +273,25 @@ function Footer() {
                   switchRole('teacher');
                 }}
               >
-                Teach on EduFlow
+                Teacher Studio
               </button>
             </li>
           </ul>
         </div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">This demo</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Platform Data</p>
           <ul className="mt-4 space-y-2.5 text-sm font-semibold text-slate-600">
-            <li><span className="font-normal text-slate-500">All content is mock data, stored locally in your browser.</span></li>
+            <li><span className="font-normal text-slate-500">Real-time local storage persistence.</span></li>
             <li>
               <button className="inline-flex items-center gap-1.5 text-rose-500 transition hover:text-rose-600" onClick={resetDemo}>
-                <Icon name="reset" className="h-3.5 w-3.5" /> Reset demo data
+                <Icon name="reset" className="h-3.5 w-3.5" /> Reset to fresh empty state
               </button>
             </li>
           </ul>
         </div>
       </div>
       <div className="border-t border-slate-100 py-5 text-center text-xs text-slate-400">
-        EduFlow — interactive product prototype for client presentation
+        EduFlow LMS — Modern Learning Management System
       </div>
     </footer>
   );

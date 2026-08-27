@@ -4,12 +4,6 @@ import { useApp } from '../store';
 import { cn, fmtDateShort, timeAgo } from '../lib';
 import { Avatar, Badge, Button, EmptyState, Field, Icon, PageHeader, Select, StatCard, TextInput } from '../components/ui';
 
-const DEMO_NOTES: Record<string, string> = {
-  u_maya: 'Demo student',
-  u_daniel: 'Demo teacher',
-  u_ava: 'Demo admin',
-};
-
 // ─────────────────────────────────────────────────────────────
 // ADMIN · OVERVIEW
 // ─────────────────────────────────────────────────────────────
