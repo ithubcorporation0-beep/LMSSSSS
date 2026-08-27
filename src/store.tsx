@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { AppData, Category, Certificate, Chapter, Course, CourseStatus, Level, Role, Route, Toast, ToastKind, User } from './types';
+import type { AppData, Category, CategoryIcon, Certificate, Chapter, Course, CourseStatus, Level, Role, Route, Toast, ToastKind, User } from './types';
 import { buildSeedData, DEMO_ADMIN_ID, DEMO_STUDENT_ID, DEMO_TEACHER_ID } from './data/seed';
 import { makeCode, nowISO, uid } from './lib';
 
@@ -40,6 +40,16 @@ export interface CourseDraftInput {
   description: string;
   categoryId: string;
   level: Level;
+  coverImage?: string;
+  whatYouLearn?: string[];
+}
+
+export interface UserDraftInput {
+  name: string;
+  email: string;
+  role: Role;
+  headline: string;
+  bio?: string;
 }
 
 interface AppContextValue {
@@ -65,17 +75,24 @@ interface AppContextValue {
 
   addCourse: (input: CourseDraftInput, teacherId: string) => Course;
   updateCourse: (courseId: string, patch: Partial<Course>) => void;
+  deleteCourse: (courseId: string) => void;
   setCourseStatus: (courseId: string, status: CourseStatus) => void;
   toggleFeatured: (courseId: string) => void;
   addChapter: (courseId: string, input: Omit<Chapter, 'id'>) => void;
   updateChapter: (courseId: string, chapterId: string, patch: Partial<Chapter>) => void;
   deleteChapter: (courseId: string, chapterId: string) => void;
   moveChapter: (courseId: string, from: number, to: number) => void;
+  addWhatYouLearn: (courseId: string, item: string) => void;
+  updateWhatYouLearn: (courseId: string, index: number, item: string) => void;
+  deleteWhatYouLearn: (courseId: string, index: number) => void;
 
+  addUser: (input: UserDraftInput) => User;
+  deleteUser: (userId: string) => { ok: boolean; reason?: string };
   setUserRole: (userId: string, role: Role) => void;
 
-  addCategory: (name: string, description: string) => Category;
+  addCategory: (name: string, description: string, icon?: CategoryIcon) => Category;
   renameCategory: (categoryId: string, name: string) => void;
+  updateCategory: (categoryId: string, patch: Partial<Category>) => void;
   deleteCategory: (categoryId: string) => { ok: boolean; reason?: string };
 
   resetDemo: () => void;
@@ -229,13 +246,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       longDescription: input.description.trim(),
       categoryId: input.categoryId,
       level: input.level,
-      coverImage: '',
+      coverImage: input.coverImage ?? '',
       teacherId,
       status: 'draft',
       featured: false,
       createdAt: nowISO(),
       chapters: [],
-      whatYouLearn: [],
+      whatYouLearn: input.whatYouLearn ?? [],
     };
     setData((d) => ({ ...d, courses: [...d.courses, course] }));
     return course;
@@ -243,6 +260,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateCourse = useCallback((courseId: string, patch: Partial<Course>) => {
     setData((d) => ({ ...d, courses: d.courses.map((c) => (c.id === courseId ? { ...c, ...patch } : c)) }));
+  }, []);
+
+  const deleteCourse = useCallback((courseId: string) => {
+    setData((d) => ({
+      ...d,
+      courses: d.courses.filter((c) => c.id !== courseId),
+      enrolments: d.enrolments.filter((e) => e.courseId !== courseId),
+      certificates: d.certificates.filter((c) => c.courseId !== courseId),
+    }));
   }, []);
 
   const setCourseStatus = useCallback((courseId: string, status: CourseStatus) => {
@@ -289,19 +315,93 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const addWhatYouLearn = useCallback((courseId: string, item: string) => {
+    const trimmed = item.trim();
+    if (!trimmed) return;
+    setData((d) => ({
+      ...d,
+      courses: d.courses.map((c) => (c.id === courseId ? { ...c, whatYouLearn: [...c.whatYouLearn, trimmed] } : c)),
+    }));
+  }, []);
+
+  const updateWhatYouLearn = useCallback((courseId: string, index: number, item: string) => {
+    const trimmed = item.trim();
+    if (!trimmed) return;
+    setData((d) => ({
+      ...d,
+      courses: d.courses.map((c) => {
+        if (c.id !== courseId) return c;
+        const copy = [...c.whatYouLearn];
+        copy[index] = trimmed;
+        return { ...c, whatYouLearn: copy };
+      }),
+    }));
+  }, []);
+
+  const deleteWhatYouLearn = useCallback((courseId: string, index: number) => {
+    setData((d) => ({
+      ...d,
+      courses: d.courses.map((c) => {
+        if (c.id !== courseId) return c;
+        return { ...c, whatYouLearn: c.whatYouLearn.filter((_, i) => i !== index) };
+      }),
+    }));
+  }, []);
+
   // ── admin actions ──────────────────────────────────────────
+  const addUser = useCallback((input: UserDraftInput) => {
+    const user: User = {
+      id: uid('u'),
+      name: input.name.trim(),
+      email: input.email.trim().toLowerCase(),
+      role: input.role,
+      headline: input.headline.trim(),
+      bio: input.bio?.trim(),
+      joinedAt: nowISO(),
+    };
+    setData((d) => ({ ...d, users: [...d.users, user] }));
+    return user;
+  }, []);
+
+  const deleteUser = useCallback(
+    (userId: string) => {
+      if (userId === DEMO_STUDENT_ID || userId === DEMO_TEACHER_ID || userId === DEMO_ADMIN_ID) {
+        return { ok: false, reason: 'Core demo personas cannot be deleted' };
+      }
+      const teachingCourses = data.courses.filter((c) => c.teacherId === userId).length;
+      if (teachingCourses > 0) {
+        return { ok: false, reason: `This user is instructor of ${teachingCourses} course${teachingCourses === 1 ? '' : 's'}` };
+      }
+      setData((d) => ({
+        ...d,
+        users: d.users.filter((u) => u.id !== userId),
+        enrolments: d.enrolments.filter((e) => e.studentId !== userId),
+        certificates: d.certificates.filter((c) => c.studentId !== userId),
+      }));
+      return { ok: true };
+    },
+    [data.courses],
+  );
+
   const setUserRole = useCallback((userId: string, nextRole: Role) => {
     setData((d) => ({ ...d, users: d.users.map((u) => (u.id === userId ? { ...u, role: nextRole } : u)) }));
   }, []);
 
-  const addCategory = useCallback((name: string, description: string) => {
-    const category: Category = { id: uid('cat'), name: name.trim(), description: description.trim(), icon: 'tag' };
+  const addCategory = useCallback((name: string, description: string, icon: CategoryIcon = 'tag') => {
+    const category: Category = { id: uid('cat'), name: name.trim(), description: description.trim(), icon };
     setData((d) => ({ ...d, categories: [...d.categories, category] }));
     return category;
   }, []);
 
   const renameCategory = useCallback((categoryId: string, name: string) => {
     setData((d) => ({ ...d, categories: d.categories.map((c) => (c.id === categoryId ? { ...c, name: name.trim() } : c)) }));
+  }, []);
+
+  const updateCategory = useCallback((categoryId: string, patch: Partial<Category>) => {
+    setData((d) => ({
+      ...d,
+      categories: d.categories.map((c) => (c.id === categoryId ? { ...c, ...patch } : c)),
+    }));
   }, []);
 
   const deleteCategory = useCallback(
@@ -348,15 +448,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     issueCertificate,
     addCourse,
     updateCourse,
+    deleteCourse,
     setCourseStatus,
     toggleFeatured,
     addChapter,
     updateChapter,
     deleteChapter,
     moveChapter,
+    addWhatYouLearn,
+    updateWhatYouLearn,
+    deleteWhatYouLearn,
+    addUser,
+    deleteUser,
     setUserRole,
     addCategory,
     renameCategory,
+    updateCategory,
     deleteCategory,
     resetDemo,
   };

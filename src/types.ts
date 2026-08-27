@@ -81,9 +81,7 @@ export type Route =
   | { page: 's-dash' }
   | { page: 's-courses' }
   | { page: 's-learn'; courseId: string; chapterId?: string }
-  | { page: 's-certs' }
-  | { page: 't-dash' }
-  | { page: 't-courses' }
+  | { page: 't-courses'; newCourse?: boolean }
   | { page: 't-edit'; id: string }
   | { page: 't-students' }
   | { page: 't-analytics' }

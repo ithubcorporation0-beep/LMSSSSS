@@ -8,25 +8,36 @@ import { Avatar, Badge, Button, EmptyState, Icon, LevelBadge, Modal, ProgressBar
 // ─────────────────────────────────────────────────────────────
 // Shared course card
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Shared course card
+// ─────────────────────────────────────────────────────────────
 export function CourseCard({ course }: { course: Course }) {
   const { data, navigate, enrolledCount } = useApp();
   const teacher = data.users.find((u) => u.id === course.teacherId);
   const category = data.categories.find((c) => c.id === course.categoryId);
   const students = enrolledCount(course.id);
+  const [imgError, setImgError] = useState(false);
 
   return (
     <button
       onClick={() => navigate({ page: 'course', id: course.id })}
       className="group flex flex-col overflow-hidden rounded-2xl bg-white text-left shadow-soft ring-1 ring-slate-900/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lift focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
     >
-      <div className="relative aspect-[16/9] overflow-hidden bg-slate-100">
-        <img
-          src={course.coverImage}
-          alt={`${course.title} cover`}
-          loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
-        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/35 to-transparent" />
+      <div className="relative aspect-[16/9] overflow-hidden bg-slate-900">
+        {course.coverImage && !imgError ? (
+          <img
+            src={course.coverImage}
+            alt={`${course.title} cover`}
+            loading="lazy"
+            onError={() => setImgError(true)}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-indigo-600 via-indigo-900 to-slate-900">
+            <Icon name={category?.icon ?? 'book-open'} className="h-12 w-12 text-white/20" />
+          </div>
+        )}
+        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/50 to-transparent" />
         {category && (
           <span className="absolute left-3 top-3">
             <Badge tone="indigo" className="bg-white/95 shadow-sm">{category.name}</Badge>
@@ -46,7 +57,7 @@ export function CourseCard({ course }: { course: Course }) {
         <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-slate-500">{course.description}</p>
         <div className="mt-4 flex items-center gap-2.5">
           <Avatar name={teacher?.name ?? 'Unknown'} size="xs" />
-          <span className="truncate text-sm font-semibold text-slate-600">{teacher?.name}</span>
+          <span className="truncate text-sm font-semibold text-slate-600">{teacher?.name ?? 'Instructor'}</span>
         </div>
         <div className="mt-4 flex items-center gap-4 border-t border-slate-100 pt-4 text-xs font-semibold text-slate-400">
           <span className="inline-flex items-center gap-1.5"><Icon name="layers" className="h-3.5 w-3.5" /> {course.chapters.length} chapters</span>
@@ -172,56 +183,68 @@ export function HomePage() {
           </div>
 
           {/* hero mock player */}
-          <div className="relative hidden lg:block animate-fade-up" style={{ animationDelay: '120ms' }}>
-            <div className="relative mx-auto max-w-md">
-              <div className="overflow-hidden rounded-3xl bg-white shadow-2xl shadow-indigo-950/10 ring-1 ring-slate-900/10">
-                <div className="relative aspect-[16/10] bg-slate-900">
-                  <img src={heroCourse.coverImage} alt="" className="h-full w-full object-cover opacity-60" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 text-indigo-600 shadow-xl transition hover:scale-105">
-                      <Icon name="play" className="h-6 w-6 translate-x-0.5" />
+          {heroCourse ? (
+            <div className="relative hidden lg:block animate-fade-up" style={{ animationDelay: '120ms' }}>
+              <div className="relative mx-auto max-w-md">
+                <div className="overflow-hidden rounded-3xl bg-white shadow-2xl shadow-indigo-950/10 ring-1 ring-slate-900/10">
+                  <div className="relative aspect-[16/10] bg-slate-900">
+                    {heroCourse.coverImage ? (
+                      <img src={heroCourse.coverImage} alt="" className="h-full w-full object-cover opacity-60" />
+                    ) : (
+                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 to-slate-950 opacity-90" />
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <button
+                        onClick={() => navigate({ page: 'course', id: heroCourse.id })}
+                        aria-label={`Preview ${heroCourse.title}`}
+                        className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 text-indigo-600 shadow-xl transition hover:scale-105"
+                      >
+                        <Icon name="play" className="h-6 w-6 translate-x-0.5" />
+                      </button>
+                    </div>
+                    <span className="absolute left-4 top-4 rounded-full bg-black/50 px-3 py-1 text-xs font-bold text-white backdrop-blur">
+                      {heroCourse.chapters[2]?.title ? `Chapter 3 · ${heroCourse.chapters[2].title}` : heroCourse.title}
                     </span>
                   </div>
-                  <span className="absolute left-4 top-4 rounded-full bg-black/50 px-3 py-1 text-xs font-bold text-white backdrop-blur">
-                    Chapter 3 · Hooks in Depth
-                  </span>
-                </div>
-                <div className="p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-slate-900">{heroCourse.title}</p>
-                      <p className="text-xs font-medium text-slate-400">Daniel Okafor · {heroCourse.chapters.length} chapters</p>
+                  <div className="p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-slate-900">{heroCourse.title}</p>
+                        <p className="text-xs font-medium text-slate-400">
+                          {data.users.find((u) => u.id === heroCourse.teacherId)?.name ?? 'Instructor'} · {heroCourse.chapters.length} chapters
+                        </p>
+                      </div>
+                      <Badge tone="emerald" icon="check-circle">3 of {Math.max(3, heroCourse.chapters.length)} done</Badge>
                     </div>
-                    <Badge tone="emerald" icon="check-circle">3 of 6 done</Badge>
-                  </div>
-                  <ProgressBar value={50} className="mt-4" />
-                  <div className="mt-3 flex items-center justify-between text-xs font-semibold text-slate-400">
-                    <span>50% complete</span>
-                    <span className="inline-flex items-center gap-1"><Icon name="clock" className="h-3.5 w-3.5" /> 8 min left today</span>
+                    <ProgressBar value={50} className="mt-4" />
+                    <div className="mt-3 flex items-center justify-between text-xs font-semibold text-slate-400">
+                      <span>50% complete</span>
+                      <span className="inline-flex items-center gap-1"><Icon name="clock" className="h-3.5 w-3.5" /> 8 min left today</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="absolute -left-10 -top-6 flex items-center gap-2.5 rounded-2xl bg-white px-4 py-3 shadow-xl ring-1 ring-slate-900/5 animate-float">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-50 text-amber-500">
-                  <Icon name="award" className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-xs font-bold text-slate-900">Certificate unlocked</p>
-                  <p className="text-[11px] text-slate-400">JavaScript Essentials</p>
+                <div className="absolute -left-10 -top-6 flex items-center gap-2.5 rounded-2xl bg-white px-4 py-3 shadow-xl ring-1 ring-slate-900/5 animate-float">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-50 text-amber-500">
+                    <Icon name="award" className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">Certificate unlocked</p>
+                    <p className="text-[11px] text-slate-400">JavaScript Essentials</p>
+                  </div>
                 </div>
-              </div>
-              <div className="absolute -bottom-6 -right-8 flex items-center gap-2.5 rounded-2xl bg-white px-4 py-3 shadow-xl ring-1 ring-slate-900/5 animate-float" style={{ animationDelay: '1.2s' }}>
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-500">
-                  <Icon name="zap" className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-xs font-bold text-slate-900">6-day streak</p>
-                  <p className="text-[11px] text-slate-400">Keep it up, Maya</p>
+                <div className="absolute -bottom-6 -right-8 flex items-center gap-2.5 rounded-2xl bg-white px-4 py-3 shadow-xl ring-1 ring-slate-900/5 animate-float" style={{ animationDelay: '1.2s' }}>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-500">
+                    <Icon name="zap" className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">6-day streak</p>
+                    <p className="text-[11px] text-slate-400">Keep it up, Maya</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </section>
 
@@ -243,23 +266,25 @@ export function HomePage() {
       </section>
 
       {/* ── Featured courses ── */}
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:py-20">
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <Badge tone="amber" icon="star" className="mb-3">Hand-picked</Badge>
-            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Featured courses</h2>
-            <p className="mt-1.5 text-sm text-slate-500">The courses our learners finish — and recommend — the most.</p>
+      {featured.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:py-20">
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <Badge tone="amber" icon="star" className="mb-3">Hand-picked</Badge>
+              <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Featured courses</h2>
+              <p className="mt-1.5 text-sm text-slate-500">The courses our learners finish — and recommend — the most.</p>
+            </div>
+            <Button variant="ghost" iconRight="arrow-right" onClick={() => navigate({ page: 'catalog' })}>
+              View all {published.length} courses
+            </Button>
           </div>
-          <Button variant="ghost" iconRight="arrow-right" onClick={() => navigate({ page: 'catalog' })}>
-            View all {published.length} courses
-          </Button>
-        </div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {featured.map((c) => (
-            <CourseCard key={c.id} course={c} />
-          ))}
-        </div>
-      </section>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {featured.map((c) => (
+              <CourseCard key={c.id} course={c} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── Categories ── */}
       <section className="bg-white py-16 lg:py-20">
@@ -505,6 +530,7 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
   const { data, navigate, enrolmentFor, enrolledCount, toast, enrol, role, switchRole } = app;
   const course = data.courses.find((c) => c.id === courseId);
   const [preview, setPreview] = useState<Chapter | null>(null);
+  const [coverImgErr, setCoverImgErr] = useState(false);
 
   if (!course) {
     return (
@@ -528,6 +554,7 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
   const enrolled = Boolean(enrolment);
   const complete = enrolled && pct >= 100;
   const isOwnerTeacher = role === 'teacher' && course.teacherId === app.currentUser.id;
+  const isAdmin = role === 'admin';
 
   const handleEnrol = () => {
     if (role !== 'student') {
@@ -552,15 +579,33 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
         </div>
       )}
 
-      <button onClick={() => navigate({ page: 'catalog' })} className="mb-6 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-indigo-600">
-        <Icon name="chevron-left" className="h-4 w-4" /> All courses
-      </button>
+      <div className="mb-6 flex items-center justify-between">
+        <button onClick={() => navigate({ page: 'catalog' })} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-indigo-600">
+          <Icon name="chevron-left" className="h-4 w-4" /> All courses
+        </button>
+        {(isOwnerTeacher || isAdmin) && (
+          <Button variant="secondary" size="sm" icon="pencil" onClick={() => navigate({ page: 't-edit', id: course.id })}>
+            Edit course
+          </Button>
+        )}
+      </div>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] xl:gap-12">
         {/* ── main column ── */}
         <div>
-          <div className="relative overflow-hidden rounded-3xl shadow-lift lg:hidden">
-            <img src={course.coverImage} alt={`${course.title} cover`} className="aspect-[16/9] w-full object-cover" />
+          <div className="relative overflow-hidden rounded-3xl bg-slate-900 shadow-lift lg:hidden">
+            {course.coverImage && !coverImgErr ? (
+              <img
+                src={course.coverImage}
+                alt={`${course.title} cover`}
+                onError={() => setCoverImgErr(true)}
+                className="aspect-[16/9] w-full object-cover"
+              />
+            ) : (
+              <div className="flex aspect-[16/9] w-full items-center justify-center bg-gradient-to-br from-indigo-700 via-indigo-900 to-slate-950 p-6 text-center">
+                <Icon name={category?.icon ?? 'book-open'} className="h-16 w-16 text-white/30" />
+              </div>
+            )}
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-2 lg:mt-0">
@@ -569,7 +614,7 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
             {course.featured && <Badge tone="amber" icon="star">Featured</Badge>}
           </div>
           <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-4xl">{course.title}</h1>
-          <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">{course.longDescription}</p>
+          <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg whitespace-pre-line">{course.longDescription}</p>
 
           {/* stats row */}
           <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -616,9 +661,13 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
                   <li key={chap.id} className={cn(i > 0 && 'border-t border-slate-100')}>
                     <button
                       onClick={() => {
-                        if (chap.freePreview) setPreview(chap);
-                        else if (!unlocked) toast(`Enrol for free to unlock “${chap.title}”`, 'info');
-                        else navigate({ page: 's-learn', courseId: course.id, chapterId: chap.id });
+                        if (enrolled) {
+                          navigate({ page: 's-learn', courseId: course.id, chapterId: chap.id });
+                        } else if (chap.freePreview) {
+                          setPreview(chap);
+                        } else {
+                          toast(`Enrol for free to unlock “${chap.title}”`, 'info');
+                        }
                       }}
                       className="group flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-indigo-50/40"
                     >
@@ -645,7 +694,7 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
                       <span className="hidden text-xs font-semibold text-slate-400 sm:block">{chap.durationMin} min</span>
                       <span className={cn(chap.freePreview ? 'text-indigo-500' : unlocked ? 'text-slate-300' : 'text-slate-300')}>
                         {unlocked ? (
-                          <Icon name={chap.freePreview ? 'play' : 'chevron-right'} className="h-4.5 w-4.5" />
+                          <Icon name={chap.freePreview && !enrolled ? 'play' : 'chevron-right'} className="h-4.5 w-4.5" />
                         ) : (
                           <Icon name="lock" className="h-4.5 w-4.5" />
                         )}
@@ -660,8 +709,19 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
 
         {/* ── sidebar ── */}
         <aside className="lg:sticky lg:top-24 lg:self-start">
-          <div className="hidden overflow-hidden rounded-3xl shadow-lift lg:block">
-            <img src={course.coverImage} alt={`${course.title} cover`} className="aspect-[16/9] w-full object-cover" />
+          <div className="hidden overflow-hidden rounded-3xl bg-slate-900 shadow-lift lg:block">
+            {course.coverImage && !coverImgErr ? (
+              <img
+                src={course.coverImage}
+                alt={`${course.title} cover`}
+                onError={() => setCoverImgErr(true)}
+                className="aspect-[16/9] w-full object-cover"
+              />
+            ) : (
+              <div className="flex aspect-[16/9] w-full items-center justify-center bg-gradient-to-br from-indigo-700 via-indigo-900 to-slate-950 p-6 text-center">
+                <Icon name={category?.icon ?? 'book-open'} className="h-16 w-16 text-white/30" />
+              </div>
+            )}
           </div>
 
           <div className="mt-5 rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-900/5">
@@ -700,7 +760,7 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
               </>
             )}
 
-            {isOwnerTeacher && (
+            {(isOwnerTeacher || isAdmin) && (
               <Button variant="secondary" className="mt-3 w-full" icon="pencil" onClick={() => navigate({ page: 't-edit', id: course.id })}>
                 Edit this course
               </Button>

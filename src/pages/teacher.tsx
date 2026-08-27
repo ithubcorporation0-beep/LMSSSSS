@@ -116,10 +116,14 @@ function useTeacherCourses() {
 // ─────────────────────────────────────────────────────────────
 // TEACHER · MY COURSES (table + new course form)
 // ─────────────────────────────────────────────────────────────
-export function TeacherCoursesPage() {
-  const { data, navigate, enrolledCount, addCourse, currentUser, toast } = useApp();
+// ─────────────────────────────────────────────────────────────
+// TEACHER · MY COURSES (table + new course form)
+// ─────────────────────────────────────────────────────────────
+export function TeacherCoursesPage({ initialOpenNew }: { initialOpenNew?: boolean }) {
+  const { data, navigate, enrolledCount, addCourse, deleteCourse, currentUser, toast } = useApp();
   const my = useTeacherCourses();
-  const [newOpen, setNewOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(initialOpenNew ?? false);
+  const [deleteCourseTarget, setDeleteCourseTarget] = useState<Course | null>(null);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
@@ -182,9 +186,16 @@ export function TeacherCoursesPage() {
                         <td className="px-6 py-4 font-semibold text-slate-600">{course.chapters.length}</td>
                         <td className="px-6 py-4 text-slate-500">{fmtDateShort(course.createdAt)}</td>
                         <td className="px-6 py-4">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end gap-1.5">
                             <Button variant="ghost" size="sm" icon="eye" onClick={() => navigate({ page: 'course', id: course.id })}>Preview</Button>
                             <Button variant="secondary" size="sm" icon="pencil" onClick={() => navigate({ page: 't-edit', id: course.id })}>Edit</Button>
+                            <button
+                              aria-label="Delete course"
+                              onClick={() => setDeleteCourseTarget(course)}
+                              className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                            >
+                              <Icon name="trash" className="h-4 w-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -206,6 +217,36 @@ export function TeacherCoursesPage() {
           navigate({ page: 't-edit', id: course.id });
         }}
       />
+
+      <Modal open={Boolean(deleteCourseTarget)} onClose={() => setDeleteCourseTarget(null)}>
+        {deleteCourseTarget && (
+          <div className="p-6">
+            <div className="flex items-center gap-3 text-rose-600">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                <Icon name="alert" className="h-5 w-5" />
+              </span>
+              <h3 className="text-lg font-bold text-slate-900">Delete “{deleteCourseTarget.title}”?</h3>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-slate-500">
+              Are you sure you want to delete this course? All associated chapters and enrolled student progress records for this course will be removed.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setDeleteCourseTarget(null)}>Cancel</Button>
+              <Button
+                className="bg-rose-600 hover:bg-rose-700 shadow-rose-600/25 text-white"
+                icon="trash"
+                onClick={() => {
+                  deleteCourse(deleteCourseTarget.id);
+                  setDeleteCourseTarget(null);
+                  toast(`Course deleted`, 'info');
+                }}
+              >
+                Delete course
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -440,6 +481,43 @@ export function CourseEditorPage({ courseId }: { courseId: string }) {
           </div>
         </section>
 
+        {/* what you'll learn */}
+        <section className="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-900/5 sm:p-7">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">What students will learn</h2>
+              <p className="mt-0.5 text-sm text-slate-400">Key takeaways shown on your course landing page.</p>
+            </div>
+          </div>
+          <div className="mt-5 space-y-3">
+            {course.whatYouLearn.length > 0 ? (
+              <ul className="space-y-2">
+                {course.whatYouLearn.map((item, idx) => (
+                  <li key={idx} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-2.5 text-sm text-slate-700">
+                    <span className="flex items-center gap-2.5 min-w-0">
+                      <Icon name="check-circle" className="h-4 w-4 shrink-0 text-emerald-500" />
+                      <span className="truncate">{item}</span>
+                    </span>
+                    <button
+                      aria-label="Remove outcome"
+                      onClick={() => {
+                        app.deleteWhatYouLearn(course.id, idx);
+                        toast('Learning outcome removed', 'info');
+                      }}
+                      className="rounded-lg p-1 text-slate-400 transition hover:bg-white hover:text-rose-600"
+                    >
+                      <Icon name="trash" className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-400 italic">No learning outcomes added yet.</p>
+            )}
+            <AddOutcomeForm onAdd={(text) => { app.addWhatYouLearn(course.id, text); toast('Learning outcome added'); }} />
+          </div>
+        </section>
+
         {/* chapters */}
         <section className="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-900/5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -538,6 +616,30 @@ export function CourseEditorPage({ courseId }: { courseId: string }) {
             </ol>
           )}
         </section>
+
+        {/* danger zone */}
+        <section className="rounded-2xl bg-rose-50/50 p-6 ring-1 ring-rose-200 sm:p-7">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-bold text-rose-900">Danger Zone</h2>
+              <p className="mt-0.5 text-xs text-rose-700">Deleting this course will permanently remove its chapters and enrolment records.</p>
+            </div>
+            <Button
+              className="bg-rose-600 hover:bg-rose-700 shadow-rose-600/25 text-white"
+              size="sm"
+              icon="trash"
+              onClick={() => {
+                if (window.confirm(`Are you sure you want to delete "${course.title}"?`)) {
+                  app.deleteCourse(course.id);
+                  toast('Course deleted', 'info');
+                  navigate({ page: 't-courses' });
+                }
+              }}
+            >
+              Delete course
+            </Button>
+          </div>
+        </section>
       </div>
 
       <CoverModal
@@ -568,6 +670,28 @@ export function CourseEditorPage({ courseId }: { courseId: string }) {
         }}
       />
     </div>
+  );
+}
+
+function AddOutcomeForm({ onAdd }: { onAdd: (text: string) => void }) {
+  const [val, setVal] = useState('');
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!val.trim()) return;
+    onAdd(val.trim());
+    setVal('');
+  };
+  return (
+    <form onSubmit={submit} className="flex gap-2 pt-2">
+      <input
+        type="text"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        placeholder="e.g. Build production-ready React apps from scratch"
+        className="flex-1 rounded-xl bg-slate-50 px-3.5 py-2 text-sm text-slate-800 ring-1 ring-slate-200 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      />
+      <Button size="sm" icon="plus" type="submit">Add outcome</Button>
+    </form>
   );
 }
 
@@ -781,6 +905,7 @@ export function TeacherStudentsPage() {
   const { data } = useApp();
   const my = useTeacherCourses();
   const [query, setQuery] = useState('');
+  const [courseFilter, setCourseFilter] = useState<string | 'all'>('all');
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -791,23 +916,34 @@ export function TeacherStudentsPage() {
         course: data.courses.find((c) => c.id === e.courseId),
       }))
       .filter((r) => r.student && r.course)
+      .filter((r) => courseFilter === 'all' || r.course!.id === courseFilter)
       .filter((r) => !q || r.student!.name.toLowerCase().includes(q) || r.student!.email.toLowerCase().includes(q))
       .sort((a, b) => b.enrolment.enrolledAt.localeCompare(a.enrolment.enrolledAt));
-  }, [my.enrolments, query, data.users, data.courses]);
+  }, [my.enrolments, query, courseFilter, data.users, data.courses]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <PageHeader title="Students" subtitle={`${my.enrolments.length} enrolments across your courses — search by name or email.`} />
 
-      <div className="relative mb-6 max-w-md">
-        <Icon name="search" className="pointer-events-none absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search students…"
-          aria-label="Search students"
-          className="w-full rounded-2xl bg-white py-3 pl-11 pr-4 text-sm font-medium shadow-soft ring-1 ring-slate-900/5 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[260px] flex-1 max-w-md">
+          <Icon name="search" className="pointer-events-none absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search students…"
+            aria-label="Search students"
+            className="w-full rounded-2xl bg-white py-3 pl-11 pr-4 text-sm font-medium shadow-soft ring-1 ring-slate-900/5 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div className="min-w-[200px]">
+          <Select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)}>
+            <option value="all">All courses ({my.courses.length})</option>
+            {my.courses.map((c) => (
+              <option key={c.id} value={c.id}>{c.title}</option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       {rows.length === 0 ? (

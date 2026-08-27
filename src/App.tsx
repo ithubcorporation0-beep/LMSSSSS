@@ -25,7 +25,7 @@ function Router() {
     case 't-dash':
       return <TeacherDashboard />;
     case 't-courses':
-      return <TeacherCoursesPage />;
+      return <TeacherCoursesPage initialOpenNew={route.newCourse} />;
     case 't-edit':
       return <CourseEditorPage courseId={route.id} />;
     case 't-students':

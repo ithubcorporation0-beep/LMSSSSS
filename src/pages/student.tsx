@@ -117,11 +117,20 @@ export function StudentDashboard() {
 // ─────────────────────────────────────────────────────────────
 export function StudentCoursesPage() {
   const { data, currentUser, navigate, issueCertificate, toast } = useApp();
-  const rows = data.enrolments
-    .filter((e) => e.studentId === currentUser.id)
-    .map((e) => ({ enrolment: e, course: data.courses.find((c) => c.id === e.courseId) }))
-    .filter((r): r is { enrolment: (typeof data.enrolments)[number]; course: Course } => Boolean(r.course))
-    .sort((a, b) => b.enrolment.lastAccessedAt.localeCompare(a.enrolment.lastAccessedAt));
+  const [filter, setFilter] = useState<'all' | 'in_progress' | 'completed'>('all');
+
+  const rows = useMemo(() => {
+    return data.enrolments
+      .filter((e) => e.studentId === currentUser.id)
+      .map((e) => ({ enrolment: e, course: data.courses.find((c) => c.id === e.courseId) }))
+      .filter((r): r is { enrolment: (typeof data.enrolments)[number]; course: Course } => Boolean(r.course))
+      .sort((a, b) => b.enrolment.lastAccessedAt.localeCompare(a.enrolment.lastAccessedAt));
+  }, [data.enrolments, data.courses, currentUser.id]);
+
+  const inProgress = rows.filter((r) => progressOf(r.course, r.enrolment).pct < 100);
+  const completed = rows.filter((r) => progressOf(r.course, r.enrolment).pct >= 100);
+
+  const displayed = filter === 'in_progress' ? inProgress : filter === 'completed' ? completed : rows;
 
   if (rows.length === 0) {
     return (
@@ -139,56 +148,104 @@ export function StudentCoursesPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <PageHeader title="My learning" subtitle={`${rows.length} course${rows.length === 1 ? '' : 's'} you're working through, ${firstName(currentUser.name)}.`} />
-      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-        {rows.map(({ enrolment, course }) => {
-          const { done, total, pct } = progressOf(course, enrolment);
-          const teacher = data.users.find((u) => u.id === course.teacherId);
-          const finished = pct >= 100;
-          return (
-            <div key={enrolment.id} className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
-              <button onClick={() => navigate({ page: 's-learn', courseId: course.id })} className="relative block aspect-[16/9] overflow-hidden bg-slate-100">
-                <img src={course.coverImage} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                <span className="absolute left-3 top-3"><LevelBadge level={course.level} /></span>
-                {finished && <span className="absolute right-3 top-3"><Badge tone="emerald" icon="check-circle" className="bg-white/95 shadow">Completed</Badge></span>}
-              </button>
-              <div className="flex flex-1 flex-col p-5">
-                <h3 className="text-base font-bold leading-snug text-slate-900">{course.title}</h3>
-                <p className="mt-1.5 flex items-center gap-2 text-sm text-slate-500">
-                  <Avatar name={teacher?.name ?? ''} size="xs" /> {teacher?.name}
-                </p>
-                <div className="mt-4 flex items-center gap-3">
-                  <ProgressBar value={pct} className="flex-1" />
-                  <span className={cn('text-xs font-extrabold', finished ? 'text-emerald-600' : 'text-indigo-600')}>
-                    {done}/{total} · {pct}%
-                  </span>
-                </div>
-                <div className="mt-5 flex gap-2.5">
-                  <Button
-                    className={cn('flex-1', finished && 'bg-emerald-600 shadow-emerald-600/25 hover:bg-emerald-700')}
-                    icon={finished ? 'eye' : 'play'}
-                    onClick={() => navigate({ page: 's-learn', courseId: course.id, chapterId: finished ? undefined : nextChapter(course, enrolment) })}
-                  >
-                    {finished ? 'Review course' : 'Continue'}
-                  </Button>
-                  {finished && (
-                    <Button
-                      variant="secondary"
-                      icon="award"
-                      onClick={() => {
-                        const cert = issueCertificate(course.id);
-                        if (cert) toast('Certificate ready — congratulations again!');
-                        navigate({ page: 's-certs' });
-                      }}
-                    >
-                      Certificate
-                    </Button>
+
+      {/* filter tabs */}
+      <div className="mb-8 flex flex-wrap gap-2 border-b border-slate-200/80 pb-4">
+        <button
+          onClick={() => setFilter('all')}
+          className={cn(
+            'rounded-xl px-4 py-2 text-sm font-semibold transition',
+            filter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+          )}
+        >
+          All courses ({rows.length})
+        </button>
+        <button
+          onClick={() => setFilter('in_progress')}
+          className={cn(
+            'rounded-xl px-4 py-2 text-sm font-semibold transition',
+            filter === 'in_progress' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+          )}
+        >
+          In progress ({inProgress.length})
+        </button>
+        <button
+          onClick={() => setFilter('completed')}
+          className={cn(
+            'rounded-xl px-4 py-2 text-sm font-semibold transition',
+            filter === 'completed' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+          )}
+        >
+          Completed ({completed.length})
+        </button>
+      </div>
+
+      {displayed.length === 0 ? (
+        <EmptyState
+          icon="book-open"
+          title={filter === 'completed' ? 'No completed courses yet' : 'No courses currently in progress'}
+          description={filter === 'completed' ? 'Finish every chapter of a course to unlock its completion certificate.' : 'All of your courses are currently completed.'}
+          action={<Button variant="secondary" onClick={() => setFilter('all')}>View all courses</Button>}
+        />
+      ) : (
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          {displayed.map(({ enrolment, course }) => {
+            const { done, total, pct } = progressOf(course, enrolment);
+            const teacher = data.users.find((u) => u.id === course.teacherId);
+            const category = data.categories.find((c) => c.id === course.categoryId);
+            const finished = pct >= 100;
+            return (
+              <div key={enrolment.id} className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
+                <button onClick={() => navigate({ page: 's-learn', courseId: course.id })} className="relative block aspect-[16/9] overflow-hidden bg-slate-900">
+                  {course.coverImage ? (
+                    <img src={course.coverImage} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-700 via-indigo-900 to-slate-950">
+                      <Icon name={category?.icon ?? 'book-open'} className="h-12 w-12 text-white/20" />
+                    </div>
                   )}
+                  <span className="absolute left-3 top-3"><LevelBadge level={course.level} /></span>
+                  {finished && <span className="absolute right-3 top-3"><Badge tone="emerald" icon="check-circle" className="bg-white/95 shadow">Completed</Badge></span>}
+                </button>
+                <div className="flex flex-1 flex-col p-5">
+                  <h3 className="text-base font-bold leading-snug text-slate-900">{course.title}</h3>
+                  <p className="mt-1.5 flex items-center gap-2 text-sm text-slate-500">
+                    <Avatar name={teacher?.name ?? ''} size="xs" /> {teacher?.name ?? 'Instructor'}
+                  </p>
+                  <div className="mt-4 flex items-center gap-3">
+                    <ProgressBar value={pct} className="flex-1" />
+                    <span className={cn('text-xs font-extrabold', finished ? 'text-emerald-600' : 'text-indigo-600')}>
+                      {done}/{total} · {pct}%
+                    </span>
+                  </div>
+                  <div className="mt-5 flex gap-2.5">
+                    <Button
+                      className={cn('flex-1', finished && 'bg-emerald-600 shadow-emerald-600/25 hover:bg-emerald-700')}
+                      icon={finished ? 'eye' : 'play'}
+                      onClick={() => navigate({ page: 's-learn', courseId: course.id, chapterId: finished ? undefined : nextChapter(course, enrolment) })}
+                    >
+                      {finished ? 'Review course' : 'Continue'}
+                    </Button>
+                    {finished && (
+                      <Button
+                        variant="secondary"
+                        icon="award"
+                        onClick={() => {
+                          const cert = issueCertificate(course.id);
+                          if (cert) toast('Certificate ready — congratulations again!');
+                          navigate({ page: 's-certs' });
+                        }}
+                      >
+                        Certificate
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

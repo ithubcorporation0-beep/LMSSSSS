@@ -94,35 +94,95 @@ function RoleBadge({ role }: { role: Role }) {
 // ADMIN · USERS
 // ─────────────────────────────────────────────────────────────
 export function AdminUsersPage() {
-  const { data, setUserRole, toast } = useApp();
+  const { data, setUserRole, addUser, deleteUser, toast } = useApp();
   const [query, setQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | Role>('all');
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<typeof data.users[number] | null>(null);
+
+  const [newName, setNewName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newHeadline, setNewHeadline] = useState('');
+  const [newRole, setNewRole] = useState<Role>('student');
+  const [addErrors, setAddErrors] = useState<Record<string, string>>({});
 
   const q = query.trim().toLowerCase();
   const rows = [...data.users]
+    .filter((u) => roleFilter === 'all' || u.role === roleFilter)
     .filter((u) => !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const errors: Record<string, string> = {};
+    if (!newName.trim()) errors.name = 'Name is required';
+    if (!newEmail.trim() || !newEmail.includes('@')) errors.email = 'Valid email is required';
+    else if (data.users.some((u) => u.email.toLowerCase() === newEmail.trim().toLowerCase())) errors.email = 'Email already in use';
+    if (!newHeadline.trim()) errors.headline = 'Headline is required';
+
+    setAddErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    addUser({
+      name: newName.trim(),
+      email: newEmail.trim().toLowerCase(),
+      headline: newHeadline.trim(),
+      role: newRole,
+    });
+    toast(`User "${newName.trim()}" added successfully`, 'success');
+    setAddModalOpen(false);
+    setNewName('');
+    setNewEmail('');
+    setNewHeadline('');
+    setNewRole('student');
+    setAddErrors({});
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <PageHeader title="Users" subtitle="Every account on the platform. Change roles — the demo state updates instantly." />
+      <PageHeader
+        title="Users"
+        subtitle="Every account on the platform. Change roles or create new users — updates instantly."
+        actions={
+          <Button icon="plus" onClick={() => setAddModalOpen(true)}>
+            Add user
+          </Button>
+        }
+      />
 
-      <div className="relative mb-6 max-w-md">
-        <Icon name="search" className="pointer-events-none absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name or email…"
-          aria-label="Search users"
-          className="w-full rounded-2xl bg-white py-3 pl-11 pr-4 text-sm font-medium shadow-soft ring-1 ring-slate-900/5 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[260px] flex-1 max-w-md">
+          <Icon name="search" className="pointer-events-none absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name or email…"
+            aria-label="Search users"
+            className="w-full rounded-2xl bg-white py-3 pl-11 pr-4 text-sm font-medium shadow-soft ring-1 ring-slate-900/5 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {(['all', 'student', 'teacher', 'admin'] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRoleFilter(r)}
+              className={cn(
+                'rounded-xl px-3.5 py-2 text-xs font-bold capitalize transition',
+                roleFilter === r ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
+              )}
+            >
+              {r === 'all' ? `All (${data.users.length})` : `${r}s (${data.users.filter((u) => u.role === r).length})`}
+            </button>
+          ))}
+        </div>
       </div>
 
       {rows.length === 0 ? (
         <EmptyState
           icon="users"
           title="No users match that search"
-          description="Try a different name or clear the search field."
-          action={<Button variant="secondary" onClick={() => setQuery('')}>Clear search</Button>}
+          description="Try a different name, clear filters, or add a new user."
+          action={<Button variant="secondary" onClick={() => { setQuery(''); setRoleFilter('all'); }}>Clear filters</Button>}
         />
       ) : (
         <div className="overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/5">
@@ -134,6 +194,7 @@ export function AdminUsersPage() {
                   <th className="px-6 py-4">Headline</th>
                   <th className="px-6 py-4">Joined</th>
                   <th className="px-6 py-4 w-44">Role</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -170,6 +231,17 @@ export function AdminUsersPage() {
                         <option value="admin">Admin</option>
                       </Select>
                     </td>
+                    <td className="px-6 py-4 text-right">
+                      {!DEMO_NOTES[u.id] && (
+                        <button
+                          onClick={() => setDeleteTarget(u)}
+                          aria-label={`Delete ${u.name}`}
+                          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                        >
+                          <Icon name="trash" className="h-4 w-4" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -177,6 +249,67 @@ export function AdminUsersPage() {
           </div>
         </div>
       )}
+
+      {/* Add User Modal */}
+      <Modal open={addModalOpen} onClose={() => setAddModalOpen(false)} title="Add user">
+        <form onSubmit={handleAddSubmit} className="space-y-4 p-6">
+          <Field label="Full name" error={addErrors.name}>
+            <TextInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Jordan Lee" invalid={Boolean(addErrors.name)} autoFocus />
+          </Field>
+          <Field label="Email address" error={addErrors.email}>
+            <TextInput value={newEmail} onChange={(e) => setNewEmail(e.target.value)} type="email" placeholder="jordan@example.com" invalid={Boolean(addErrors.email)} />
+          </Field>
+          <Field label="Headline" error={addErrors.headline}>
+            <TextInput value={newHeadline} onChange={(e) => setNewHeadline(e.target.value)} placeholder="e.g. Cloud Architect · Dev Advocate" invalid={Boolean(addErrors.headline)} />
+          </Field>
+          <Field label="Role">
+            <Select value={newRole} onChange={(e) => setNewRole(e.target.value as Role)}>
+              <option value="student">Student</option>
+              <option value="teacher">Teacher</option>
+              <option value="admin">Admin</option>
+            </Select>
+          </Field>
+          <div className="flex gap-3 pt-2">
+            <Button className="flex-1" icon="plus" type="submit">Create user</Button>
+            <Button variant="ghost" onClick={() => setAddModalOpen(false)}>Cancel</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete User Confirmation */}
+      <Modal open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)}>
+        {deleteTarget && (
+          <div className="p-6">
+            <div className="flex items-center gap-3 text-rose-600">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                <Icon name="alert" className="h-5 w-5" />
+              </span>
+              <h3 className="text-lg font-bold text-slate-900">Delete user “{deleteTarget.name}”?</h3>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-slate-500">
+              Are you sure you want to remove this account? This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+              <Button
+                className="bg-rose-600 hover:bg-rose-700 shadow-rose-600/25 text-white"
+                icon="trash"
+                onClick={() => {
+                  const res = deleteUser(deleteTarget.id);
+                  if (!res.ok) {
+                    toast(res.reason ?? 'Cannot delete user', 'error');
+                  } else {
+                    toast(`User deleted`, 'info');
+                    setDeleteTarget(null);
+                  }
+                }}
+              >
+                Delete user
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -185,16 +318,50 @@ export function AdminUsersPage() {
 // ADMIN · COURSES
 // ─────────────────────────────────────────────────────────────
 export function AdminCoursesPage() {
-  const { data, enrolledCount, setCourseStatus, toggleFeatured, toast, navigate } = useApp();
+  const { data, enrolledCount, setCourseStatus, toggleFeatured, deleteCourse, toast, navigate } = useApp();
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
+  const [deleteCourseTarget, setDeleteCourseTarget] = useState<Course | null>(null);
 
-  const rows = [...data.courses].sort((a, b) => a.title.localeCompare(b.title));
+  const q = query.trim().toLowerCase();
+  const rows = [...data.courses]
+    .filter((c) => statusFilter === 'all' || c.status === statusFilter)
+    .filter((c) => !q || c.title.toLowerCase().includes(q) || c.description.toLowerCase().includes(q))
+    .sort((a, b) => a.title.localeCompare(b.title));
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <PageHeader title="Courses" subtitle="Every course on the platform — moderate status and homepage placement." />
+      <PageHeader title="Courses" subtitle="Every course on the platform — moderate status, homepage placement and deletion." />
+
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[260px] flex-1 max-w-md">
+          <Icon name="search" className="pointer-events-none absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search courses…"
+            aria-label="Search courses"
+            className="w-full rounded-2xl bg-white py-3 pl-11 pr-4 text-sm font-medium shadow-soft ring-1 ring-slate-900/5 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {(['all', 'published', 'draft'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={cn(
+                'rounded-xl px-3.5 py-2 text-xs font-bold capitalize transition',
+                statusFilter === s ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
+              )}
+            >
+              {s === 'all' ? `All (${data.courses.length})` : `${s} (${data.courses.filter((c) => c.status === s).length})`}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {rows.length === 0 ? (
-        <EmptyState icon="book-open" title="No courses on the platform" description="When teachers publish courses, they will appear here for moderation." />
+        <EmptyState icon="book-open" title="No courses match your filter" description="When teachers publish courses or draft them, they will appear here." />
       ) : (
         <div className="overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/5">
           <div className="overflow-x-auto">
@@ -236,7 +403,7 @@ export function AdminCoursesPage() {
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center gap-2 font-semibold text-slate-600">
                           <Avatar name={teacher?.name ?? '?'} size="xs" />
-                          <span className="max-w-[140px] truncate">{teacher?.name}</span>
+                          <span className="max-w-[140px] truncate">{teacher?.name ?? 'Instructor'}</span>
                         </span>
                       </td>
                       <td className="px-6 py-4">{published ? <Badge tone="emerald" icon="eye">Published</Badge> : <Badge tone="amber" icon="pencil">Draft</Badge>}</td>
@@ -258,10 +425,10 @@ export function AdminCoursesPage() {
                         </button>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex justify-end">
+                        <div className="flex justify-end items-center gap-1.5">
                           {published ? (
                             <Button
-                              variant="danger"
+                              variant="secondary"
                               size="sm"
                               icon="eye-off"
                               onClick={() => {
@@ -269,7 +436,7 @@ export function AdminCoursesPage() {
                                 toast(`“${course.title}” force-unpublished — hidden from the catalog`, 'info');
                               }}
                             >
-                              Force unpublish
+                              Unpublish
                             </Button>
                           ) : (
                             <Button
@@ -281,9 +448,16 @@ export function AdminCoursesPage() {
                                 toast(`“${course.title}” republished to the catalog`);
                               }}
                             >
-                              Republish
+                              Publish
                             </Button>
                           )}
+                          <button
+                            onClick={() => setDeleteCourseTarget(course)}
+                            aria-label={`Delete ${course.title}`}
+                            className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                          >
+                            <Icon name="trash" className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -294,6 +468,37 @@ export function AdminCoursesPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Course Modal */}
+      <Modal open={Boolean(deleteCourseTarget)} onClose={() => setDeleteCourseTarget(null)}>
+        {deleteCourseTarget && (
+          <div className="p-6">
+            <div className="flex items-center gap-3 text-rose-600">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                <Icon name="alert" className="h-5 w-5" />
+              </span>
+              <h3 className="text-lg font-bold text-slate-900">Delete “{deleteCourseTarget.title}”?</h3>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-slate-500">
+              Admin action: This will permanently delete the course, all its chapters, and student completion records across the platform.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setDeleteCourseTarget(null)}>Cancel</Button>
+              <Button
+                className="bg-rose-600 hover:bg-rose-700 shadow-rose-600/25 text-white"
+                icon="trash"
+                onClick={() => {
+                  deleteCourse(deleteCourseTarget.id);
+                  setDeleteCourseTarget(null);
+                  toast(`Course "${deleteCourseTarget.title}" deleted`, 'info');
+                }}
+              >
+                Delete course
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -302,12 +507,14 @@ export function AdminCoursesPage() {
 // ADMIN · CATEGORIES
 // ─────────────────────────────────────────────────────────────
 export function AdminCategoriesPage() {
-  const { data, addCategory, renameCategory, deleteCategory, toast } = useApp();
+  const { data, addCategory, renameCategory, updateCategory, deleteCategory, toast } = useApp();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [icon, setIcon] = useState<Parameters<typeof Icon>[0]['name']>('shapes');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
+  const [editIcon, setEditIcon] = useState<Parameters<typeof Icon>[0]['name']>('tag');
   const [editError, setEditError] = useState('');
 
   const countFor = (id: string) => data.courses.filter((c) => c.categoryId === id).length;
@@ -319,9 +526,10 @@ export function AdminCategoriesPage() {
     if (!description.trim()) next.description = 'Add a one-line description';
     setErrors(next);
     if (Object.keys(next).length > 0) return;
-    addCategory(name, description);
+    addCategory(name, description, icon);
     setName('');
     setDescription('');
+    setIcon('shapes');
     setErrors({});
     toast(`Category “${name.trim()}” created`);
   };
@@ -331,25 +539,34 @@ export function AdminCategoriesPage() {
       setEditError('Name can’t be empty');
       return;
     }
-    renameCategory(id, editDraft);
+    updateCategory(id, { name: editDraft.trim(), icon: editIcon });
     setEditingId(null);
     setEditError('');
-    toast('Category renamed');
+    toast('Category updated');
   };
+
+  const availableIcons: Parameters<typeof Icon>[0]['name'][] = ['code', 'shapes', 'briefcase', 'megaphone', 'camera', 'tag', 'book-open', 'award', 'layers'];
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <PageHeader title="Categories" subtitle="Add, rename or delete catalog categories. Deletion is blocked while courses use a category." />
+      <PageHeader title="Categories" subtitle="Add, rename or delete catalog categories with custom icons. Deletion is blocked while courses use a category." />
 
       {/* add form */}
       <div className="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-900/5 sm:p-7">
         <h2 className="font-bold text-slate-900">Add a category</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_1.4fr_auto] sm:items-start">
+        <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_1fr_120px_auto] sm:items-start">
           <Field label="Name" error={errors.name}>
             <TextInput value={name} onChange={(e) => setName(e.target.value)} invalid={Boolean(errors.name)} placeholder="e.g. Data Science" onKeyDown={(e) => e.key === 'Enter' && submitAdd()} />
           </Field>
           <Field label="Description" error={errors.description}>
             <TextInput value={description} onChange={(e) => setDescription(e.target.value)} invalid={Boolean(errors.description)} placeholder="One friendly line about the topic" onKeyDown={(e) => e.key === 'Enter' && submitAdd()} />
+          </Field>
+          <Field label="Icon">
+            <Select value={icon} onChange={(e) => setIcon(e.target.value as Parameters<typeof Icon>[0]['name'])}>
+              {availableIcons.map((ic) => (
+                <option key={ic} value={ic}>{ic}</option>
+              ))}
+            </Select>
           </Field>
           <div className="sm:pt-7">
             <Button icon="plus" className="w-full sm:w-auto" onClick={submitAdd}>Add</Button>
@@ -368,7 +585,7 @@ export function AdminCategoriesPage() {
           return (
             <div key={cat.id} className="flex flex-wrap items-center gap-4 rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-900/5">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                <Icon name={cat.icon} className="h-5.5 w-5.5" />
+                <Icon name={editing ? editIcon : cat.icon} className="h-5.5 w-5.5" />
               </span>
               <div className="min-w-0 flex-1">
                 {editing ? (
@@ -385,6 +602,11 @@ export function AdminCategoriesPage() {
                           if (e.key === 'Escape') { setEditingId(null); setEditError(''); }
                         }}
                       />
+                      <Select value={editIcon} onChange={(e) => setEditIcon(e.target.value as Parameters<typeof Icon>[0]['name'])} className="w-32 py-2 text-xs">
+                        {availableIcons.map((ic) => (
+                          <option key={ic} value={ic}>{ic}</option>
+                        ))}
+                      </Select>
                       <Button size="sm" icon="check" onClick={() => submitRename(cat.id)}>Save</Button>
                       <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditError(''); }}>Cancel</Button>
                     </div>
@@ -413,10 +635,11 @@ export function AdminCategoriesPage() {
                     onClick={() => {
                       setEditingId(cat.id);
                       setEditDraft(cat.name);
+                      setEditIcon(cat.icon);
                       setEditError('');
                     }}
                   >
-                    Rename
+                    Edit
                   </Button>
                   <Button
                     variant="danger"
