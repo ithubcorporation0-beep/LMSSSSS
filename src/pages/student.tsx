@@ -6,10 +6,79 @@ import { Avatar, Badge, Button, EmptyState, Icon, LevelBadge, MarkdownViewer, Mo
 import { CourseCard } from './public';
 
 // ─────────────────────────────────────────────────────────────
+// Auth Required Gate Helper
+// ─────────────────────────────────────────────────────────────
+export function AuthRequiredGate({
+  title = 'Sign In to Access Learning Hub',
+  description = 'Course lessons, video playback, knowledge quizzes, and personal notes require you to sign in with an active account.',
+  intendedCourseId,
+}: {
+  title?: string;
+  description?: string;
+  intendedCourseId?: string;
+}) {
+  const { openAuthModal, navigate, login } = useApp();
+
+  return (
+    <div className="mx-auto max-w-xl px-4 py-16 text-center">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 shadow-sm ring-1 ring-indigo-100">
+        <Icon name="lock" className="h-8 w-8" />
+      </div>
+      <h2 className="mt-5 text-2xl font-extrabold text-slate-900 sm:text-3xl">{title}</h2>
+      <p className="mt-2 text-sm text-slate-500 leading-relaxed max-w-md mx-auto">{description}</p>
+
+      {/* Demo Credentials Card */}
+      <div className="mt-8 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 p-5 text-white shadow-lift text-left">
+        <div className="flex items-center gap-2">
+          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/20 text-white">
+            <Icon name="sparkles" className="h-3.5 w-3.5" />
+          </span>
+          <span className="text-xs font-bold uppercase tracking-wider text-indigo-100">Demo Student Credentials</span>
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-indigo-100">
+          Use the pre-configured demo student account or click the button below to sign in instantly.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-black/20 p-2.5 font-mono text-xs">
+          <div>
+            <span className="text-[10px] text-indigo-200 uppercase font-sans font-bold block">Email</span>
+            <strong className="text-white">student@eduflow.io</strong>
+          </div>
+          <div>
+            <span className="text-[10px] text-indigo-200 uppercase font-sans font-bold block">Password</span>
+            <strong className="text-white">demo123</strong>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          className="mt-3 w-full bg-white text-indigo-700 font-bold hover:bg-indigo-50 shadow"
+          icon="zap"
+          onClick={() => login('student@eduflow.io', 'demo123')}
+        >
+          ⚡ Instant Sign In with Demo Account
+        </Button>
+      </div>
+
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <Button size="lg" icon="log-in" onClick={() => openAuthModal(intendedCourseId)}>
+          Sign In / Register
+        </Button>
+        <Button size="lg" variant="secondary" onClick={() => navigate({ page: 'catalog' })}>
+          Browse Course Catalog
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // STUDENT DASHBOARD
 // ─────────────────────────────────────────────────────────────
 export function StudentDashboard() {
   const { data, currentUser, navigate } = useApp();
+
+  if (!currentUser) {
+    return <AuthRequiredGate title="Sign In to View Your Dashboard" description="Access your enrolled courses, chapter progress, and certificates by signing in." />;
+  }
 
   const myEnrolments = data.enrolments.filter((e) => e.studentId === currentUser.id);
   const courseById = (id: string) => data.courses.find((c) => c.id === id);
@@ -128,13 +197,15 @@ export function StudentCoursesPage() {
   const { data, currentUser, navigate, issueCertificate, toast } = useApp();
   const [filter, setFilter] = useState<'all' | 'in_progress' | 'completed'>('all');
 
-  const rows = useMemo(() => {
-    return data.enrolments
-      .filter((e) => e.studentId === currentUser.id)
-      .map((e) => ({ enrolment: e, course: data.courses.find((c) => c.id === e.courseId) }))
-      .filter((r): r is { enrolment: (typeof data.enrolments)[number]; course: Course } => Boolean(r.course))
-      .sort((a, b) => b.enrolment.lastAccessedAt.localeCompare(a.enrolment.lastAccessedAt));
-  }, [data.enrolments, data.courses, currentUser.id]);
+  if (!currentUser) {
+    return <AuthRequiredGate title="Sign In to Access Your Courses" description="View your active course progress and completed curriculums." />;
+  }
+
+  const rows = data.enrolments
+    .filter((e) => e.studentId === currentUser.id)
+    .map((e) => ({ enrolment: e, course: data.courses.find((c) => c.id === e.courseId) }))
+    .filter((r): r is { enrolment: (typeof data.enrolments)[number]; course: Course } => Boolean(r.course))
+    .sort((a, b) => b.enrolment.lastAccessedAt.localeCompare(a.enrolment.lastAccessedAt));
 
   const inProgress = rows.filter((r) => progressOf(r.course, r.enrolment).pct < 100);
   const completed = rows.filter((r) => progressOf(r.course, r.enrolment).pct >= 100);
@@ -248,6 +319,11 @@ export function StudentCoursesPage() {
 // ─────────────────────────────────────────────────────────────
 export function StudentWishlistPage() {
   const { data, currentUser, navigate } = useApp();
+
+  if (!currentUser) {
+    return <AuthRequiredGate title="Sign In to View Saved Wishlist" description="Keep track of courses you plan to study in your personal queue." />;
+  }
+
   const wishItems = data.wishlist.filter((w) => w.userId === currentUser.id);
   const courses = wishItems
     .map((w) => data.courses.find((c) => c.id === w.courseId))
@@ -304,6 +380,18 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
   const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
 
   const course = data.courses.find((c) => c.id === courseId);
+
+  // AUTH PROTECTION GATE: If not signed in, show Auth Gate
+  if (!currentUser) {
+    return (
+      <AuthRequiredGate
+        title="Sign In to Start Learning"
+        description="Accessing full chapter videos, lecture notes, interactive quizzes, and discussions requires an account."
+        intendedCourseId={courseId}
+      />
+    );
+  }
+
   const enrolment = data.enrolments.find((e) => e.courseId === courseId && e.studentId === currentUser.id);
 
   const activeChapterId = useMemo(() => {
@@ -329,9 +417,9 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
     return (
       <div className="mx-auto max-w-xl px-4 py-20">
         <EmptyState
-          icon="lock"
-          title="Enrolment Required"
-          description="Enrol in this course for free to track your chapter progress, save personal notes, and earn a verified certificate."
+          icon="book-open"
+          title="Ready to begin?"
+          description="Click below to enrol in this course for free and unlock full video playback, quizzes, and personal notes."
           action={
             <Button
               iconRight="arrow-right"
@@ -772,6 +860,11 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
 // ─────────────────────────────────────────────────────────────
 export function CertificatesPage() {
   const { data, currentUser, navigate } = useApp();
+
+  if (!currentUser) {
+    return <AuthRequiredGate title="Sign In to View Certificates" description="View your earned course completion certificates." />;
+  }
+
   const mine = data.certificates
     .filter((c) => c.studentId === currentUser.id)
     .sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));

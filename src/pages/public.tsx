@@ -8,7 +8,7 @@ import { Avatar, Badge, Button, EmptyState, Field, Icon, LevelBadge, Modal, Prog
 // Shared Course Card
 // ─────────────────────────────────────────────────────────────
 export function CourseCard({ course }: { course: Course }) {
-  const { data, navigate, enrolledCount, isWishlisted, toggleWishlist, currentUser, toast } = useApp();
+  const { data, navigate, enrolledCount, isWishlisted, toggleWishlist, toast } = useApp();
   const teacher = data.users.find((u) => u.id === course.teacherId);
   const category = data.categories.find((c) => c.id === course.categoryId);
   const students = enrolledCount(course.id);
@@ -455,7 +455,7 @@ export function CatalogPage({ initialCategoryId, search }: { initialCategoryId?:
 // ─────────────────────────────────────────────────────────────
 export function CourseDetailPage({ courseId }: { courseId: string }) {
   const app = useApp();
-  const { data, navigate, enrolmentFor, enrolledCount, toast, enrol, isWishlisted, toggleWishlist, addCourseReview, reviewsFor } = app;
+  const { data, navigate, currentUser, openAuthModal, requireAuth, enrolmentFor, enrolledCount, toast, enrol, isWishlisted, toggleWishlist, addCourseReview, reviewsFor } = app;
   const course = data.courses.find((c) => c.id === courseId);
   const [previewChapter, setPreviewChapter] = useState<Chapter | null>(null);
 
@@ -488,6 +488,10 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
   const reviews = reviewsFor(course.id);
 
   const handleEnrol = () => {
+    if (!currentUser) {
+      openAuthModal(course.id);
+      return;
+    }
     enrol(course.id);
     toast(`Enrolled in “${course.title}”! Let's start chapter 1.`);
     navigate({ page: 's-learn', courseId: course.id });
@@ -496,10 +500,12 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
   const handleReviewSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!reviewComment.trim()) return;
-    addCourseReview(course.id, reviewRating, reviewComment.trim());
-    setReviewComment('');
-    setReviewSubmitted(true);
-    toast('Thank you for submitting your course review!');
+    const ok = addCourseReview(course.id, reviewRating, reviewComment.trim());
+    if (ok) {
+      setReviewComment('');
+      setReviewSubmitted(true);
+      toast('Thank you for submitting your course review!');
+    }
   };
 
   return (
@@ -511,7 +517,9 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
         <button
           onClick={() => {
             toggleWishlist(course.id);
-            toast(isWish ? 'Removed from wishlist' : 'Saved to wishlist', 'info');
+            if (currentUser) {
+              toast(isWish ? 'Removed from wishlist' : 'Saved to wishlist', 'info');
+            }
           }}
           className={cn(
             'flex items-center gap-2 rounded-xl border px-3.5 py-1.5 text-xs font-bold transition',
@@ -589,7 +597,10 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
                         } else if (chap.freePreview) {
                           setPreviewChapter(chap);
                         } else {
-                          toast(`Enrol in this course to start “${chap.title}”`, 'info');
+                          requireAuth(() => {
+                            enrol(course.id);
+                            navigate({ page: 's-learn', courseId: course.id, chapterId: chap.id });
+                          }, course.id);
                         }
                       }}
                       className="group flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-indigo-50/40"
@@ -711,7 +722,7 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
                   <span className="ml-2 text-sm font-semibold text-slate-400 line-through">$99</span>
                 </div>
                 <Button size="lg" className="w-full" iconRight="arrow-right" onClick={handleEnrol}>
-                  Enrol Free &amp; Start Learning
+                  {currentUser ? 'Enrol Free & Start Learning' : 'Sign In to Enrol & Learn'}
                 </Button>
                 <p className="mt-2 text-center text-xs text-slate-400">Lifetime access &middot; Verifiable Certificate included</p>
               </div>
@@ -757,7 +768,7 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
                   handleEnrol();
                 }}
               >
-                Enrol Free to Unlock All Lessons
+                {currentUser ? 'Enrol Free to Unlock All Lessons' : 'Sign In to Unlock All Lessons'}
               </Button>
               <Button variant="ghost" onClick={() => setPreviewChapter(null)}>Close Preview</Button>
             </div>

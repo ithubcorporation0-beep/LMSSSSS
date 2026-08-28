@@ -24,30 +24,30 @@ import type {
 import { buildSeedData, DEMO_ADMIN_ID, DEMO_STUDENT_ID, DEMO_TEACHER_ID } from './data/seed';
 import { makeCode, nowISO, uid } from './lib';
 
-const STORAGE_KEY = 'eduflow-prod-state-v4';
+const STORAGE_KEY = 'eduflow-prod-state-v5';
 
 interface PersistedShape {
   v: number;
-  activeUserId: string;
+  activeUserId: string | null;
   route: Route;
   data: AppData;
 }
 
 function loadPersisted(): PersistedShape {
   const seed = buildSeedData();
-  const fallback: PersistedShape = { v: 4, activeUserId: DEMO_STUDENT_ID, route: { page: 'home' }, data: seed };
+  const fallback: PersistedShape = { v: 5, activeUserId: null, route: { page: 'home' }, data: seed };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<PersistedShape>;
-    if (parsed.v !== 4 || !parsed.data) return fallback;
+    if (parsed.v !== 5 || !parsed.data) return fallback;
     const d = parsed.data;
     if (!Array.isArray(d.categories) || !Array.isArray(d.courses) || !Array.isArray(d.users) || !Array.isArray(d.enrolments) || !Array.isArray(d.certificates)) {
       return fallback;
     }
     return {
-      v: 4,
-      activeUserId: parsed.activeUserId ?? DEMO_STUDENT_ID,
+      v: 5,
+      activeUserId: parsed.activeUserId ?? null,
       route: parsed.route ?? { page: 'home' },
       data: {
         ...d,
@@ -97,17 +97,24 @@ export interface UserDraftInput {
   password?: string;
 }
 
-interface AppContextValue {
+export interface AppContextValue {
   data: AppData;
   role: Role;
   route: Route;
-  currentUser: User;
+  currentUser: User | null;
+  isAuthenticated: boolean;
   toasts: Toast[];
+
+  authModalOpen: boolean;
+  openAuthModal: (intendedCourseId?: string) => void;
+  closeAuthModal: () => void;
+  requireAuth: (callback?: () => void, intendedCourseId?: string) => boolean;
 
   navigate: (route: Route) => void;
   switchRole: (role: Role) => void;
-  switchActiveUser: (userId: string) => void;
-  login: (email: string) => boolean;
+  switchActiveUser: (userId: string | null) => void;
+  login: (email: string, password?: string) => { ok: boolean; error?: string };
+  logout: () => void;
   register: (input: UserDraftInput) => User;
   updateUserProfile: (userId: string, patch: Partial<User>) => void;
   toast: (message: string, kind?: ToastKind) => void;
@@ -119,10 +126,10 @@ interface AppContextValue {
   isWishlisted: (courseId: string) => boolean;
   toggleWishlist: (courseId: string) => void;
 
-  enrol: (courseId: string, asStudentId?: string) => void;
+  enrol: (courseId: string, asStudentId?: string) => boolean;
   completeChapter: (courseId: string, chapterId: string) => void;
   touchCourse: (courseId: string) => void;
-  issueCertificate: (courseId: string, studentId?: string) => Certificate;
+  issueCertificate: (courseId: string, studentId?: string) => Certificate | undefined;
   saveQuizScore: (courseId: string, chapterId: string, score: number, total: number) => void;
 
   // Student Notes
@@ -136,7 +143,7 @@ interface AppContextValue {
 
   // Reviews
   reviewsFor: (courseId: string) => CourseReview[];
-  addCourseReview: (courseId: string, rating: number, comment: string) => void;
+  addCourseReview: (courseId: string, rating: number, comment: string) => boolean;
 
   // Course Authoring
   addCourse: (input: CourseDraftInput, teacherId: string) => Course;
@@ -176,21 +183,25 @@ const ROLE_HOME: Record<Role, Route> = {
 export function AppProvider({ children }: { children: ReactNode }) {
   const initial = useMemo(loadPersisted, []);
   const [data, setData] = useState<AppData>(initial.data);
-  const [activeUserId, setActiveUserId] = useState<string>(initial.activeUserId);
+  const [activeUserId, setActiveUserId] = useState<string | null>(initial.activeUserId);
   const [route, setRoute] = useState<Route>(initial.route);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [intendedCourseId, setIntendedCourseId] = useState<string | undefined>(undefined);
   const toastId = useRef(0);
 
-  const currentUser = useMemo<User>(() => {
-    return data.users.find((u) => u.id === activeUserId) ?? data.users[0];
+  const currentUser = useMemo<User | null>(() => {
+    if (!activeUserId) return null;
+    return data.users.find((u) => u.id === activeUserId) ?? null;
   }, [data.users, activeUserId]);
 
-  const role = currentUser.role;
+  const isAuthenticated = currentUser !== null;
+  const role: Role = currentUser?.role ?? 'student';
 
   // Persist state across reloads
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 4, activeUserId, route, data }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 5, activeUserId, route, data }));
     } catch {
       /* storage unavailable */
     }
@@ -212,26 +223,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }, []);
 
+  const openAuthModal = useCallback((targetCourseId?: string) => {
+    setIntendedCourseId(targetCourseId);
+    setAuthModalOpen(true);
+  }, []);
+
+  const closeAuthModal = useCallback(() => {
+    setAuthModalOpen(false);
+    setIntendedCourseId(undefined);
+  }, []);
+
+  const requireAuth = useCallback(
+    (callback?: () => void, targetCourseId?: string): boolean => {
+      if (currentUser) {
+        if (callback) callback();
+        return true;
+      }
+      openAuthModal(targetCourseId);
+      return false;
+    },
+    [currentUser, openAuthModal],
+  );
+
   const switchRole = useCallback(
     (next: Role) => {
-      // Find a user with this role, or update current user's role
       const matched = data.users.find((u) => u.role === next);
       if (matched) {
         setActiveUserId(matched.id);
-      } else {
+      } else if (currentUser) {
         setData((d) => ({
           ...d,
-          users: d.users.map((u) => (u.id === activeUserId ? { ...u, role: next } : u)),
+          users: d.users.map((u) => (u.id === currentUser.id ? { ...u, role: next } : u)),
         }));
+      } else {
+        openAuthModal();
+        return;
       }
       setRoute(ROLE_HOME[next]);
       window.scrollTo({ top: 0 });
     },
-    [data.users, activeUserId],
+    [data.users, currentUser, openAuthModal],
   );
 
-  const switchActiveUser = useCallback((userId: string) => {
+  const switchActiveUser = useCallback((userId: string | null) => {
     setActiveUserId(userId);
+    if (!userId) {
+      setRoute({ page: 'home' });
+      return;
+    }
     const user = data.users.find((u) => u.id === userId);
     if (user) {
       setRoute(ROLE_HOME[user.role]);
@@ -239,18 +278,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [data.users]);
 
   const login = useCallback(
-    (email: string) => {
-      const user = data.users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-      if (user) {
-        setActiveUserId(user.id);
-        setRoute(ROLE_HOME[user.role]);
-        toast(`Signed in as ${user.name}`);
-        return true;
+    (email: string, password?: string) => {
+      const cleanEmail = email.trim().toLowerCase();
+      const user = data.users.find((u) => u.email.toLowerCase() === cleanEmail);
+      if (!user) {
+        return { ok: false, error: 'No account found with this email address.' };
       }
-      return false;
+      if (password && user.password && user.password !== password.trim()) {
+        return { ok: false, error: 'Incorrect password. (Try "demo123" for demo accounts)' };
+      }
+
+      setActiveUserId(user.id);
+      setAuthModalOpen(false);
+      toast(`Signed in as ${user.name}`);
+
+      if (intendedCourseId) {
+        setRoute({ page: 's-learn', courseId: intendedCourseId });
+        setIntendedCourseId(undefined);
+      } else if (route.page === 'home' || route.page === 'catalog') {
+        // stay on current page or go to dashboard
+      } else {
+        setRoute(ROLE_HOME[user.role]);
+      }
+
+      return { ok: true };
     },
-    [data.users, toast],
+    [data.users, intendedCourseId, route.page, toast],
   );
+
+  const logout = useCallback(() => {
+    setActiveUserId(null);
+    setRoute({ page: 'home' });
+    toast('Signed out successfully', 'info');
+  }, [toast]);
 
   const register = useCallback(
     (input: UserDraftInput) => {
@@ -258,19 +318,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: uid('u'),
         name: input.name.trim(),
         email: input.email.trim().toLowerCase(),
+        password: input.password?.trim() || 'demo123',
         role: input.role,
         headline: input.headline.trim(),
         bio: input.bio?.trim(),
-        avatar: input.avatar,
+        avatar: input.avatar?.trim(),
         joinedAt: nowISO(),
       };
       setData((d) => ({ ...d, users: [...d.users, user] }));
       setActiveUserId(user.id);
-      setRoute(ROLE_HOME[user.role]);
-      toast(`Welcome, ${user.name}! Account created.`);
+      setAuthModalOpen(false);
+      toast(`Account created! Welcome, ${user.name}.`);
+
+      if (intendedCourseId) {
+        setRoute({ page: 's-learn', courseId: intendedCourseId });
+        setIntendedCourseId(undefined);
+      } else {
+        setRoute(ROLE_HOME[user.role]);
+      }
       return user;
     },
-    [toast],
+    [intendedCourseId, toast],
   );
 
   const updateUserProfile = useCallback((userId: string, patch: Partial<User>) => {
@@ -282,18 +350,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const enrolmentFor = useCallback(
     (courseId: string, studentId?: string) => {
-      const sid = studentId ?? currentUser.id;
+      const sid = studentId ?? currentUser?.id;
+      if (!sid) return undefined;
       return data.enrolments.find((e) => e.courseId === courseId && e.studentId === sid);
     },
-    [data.enrolments, currentUser.id],
+    [data.enrolments, currentUser],
   );
 
   const certificateFor = useCallback(
     (courseId: string, studentId?: string) => {
-      const sid = studentId ?? currentUser.id;
+      const sid = studentId ?? currentUser?.id;
+      if (!sid) return undefined;
       return data.certificates.find((c) => c.courseId === courseId && c.studentId === sid);
     },
-    [data.certificates, currentUser.id],
+    [data.certificates, currentUser],
   );
 
   const enrolledCount = useCallback(
@@ -302,227 +372,261 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const isWishlisted = useCallback(
-    (courseId: string) => data.wishlist.some((w) => w.userId === currentUser.id && w.courseId === courseId),
-    [data.wishlist, currentUser.id],
+    (courseId: string) => {
+      if (!currentUser) return false;
+      return data.wishlist.some((w) => w.userId === currentUser.id && w.courseId === courseId);
+    },
+    [data.wishlist, currentUser],
   );
 
   const toggleWishlist = useCallback(
     (courseId: string) => {
-      setData((d) => {
-        const exists = d.wishlist.some((w) => w.userId === currentUser.id && w.courseId === courseId);
-        if (exists) {
-          return { ...d, wishlist: d.wishlist.filter((w) => !(w.userId === currentUser.id && w.courseId === courseId)) };
-        }
-        return { ...d, wishlist: [...d.wishlist, { userId: currentUser.id, courseId, addedAt: nowISO() }] };
-      });
+      if (!currentUser) {
+        openAuthModal();
+        return;
+      }
+      const existing = data.wishlist.find((w) => w.userId === currentUser.id && w.courseId === courseId);
+      if (existing) {
+        setData((d) => ({ ...d, wishlist: d.wishlist.filter((w) => w.id !== existing.id) }));
+      } else {
+        setData((d) => ({
+          ...d,
+          wishlist: [...d.wishlist, { id: uid('wish'), userId: currentUser.id, courseId, addedAt: nowISO() }],
+        }));
+      }
     },
-    [currentUser.id],
+    [currentUser, data.wishlist, openAuthModal],
   );
 
-  // ── Student Actions ────────────────────────────────────────
   const enrol = useCallback(
-    (courseId: string, asStudentId?: string) => {
-      const sid = asStudentId ?? currentUser.id;
-      setData((d) => {
-        if (d.enrolments.some((e) => e.courseId === courseId && e.studentId === sid)) return d;
-        const enrolment = {
-          id: uid('e'),
-          studentId: sid,
-          courseId,
-          enrolledAt: nowISO(),
-          lastAccessedAt: nowISO(),
-          completedChapterIds: [] as string[],
-        };
-        return { ...d, enrolments: [...d.enrolments, enrolment] };
-      });
+    (courseId: string, asStudentId?: string): boolean => {
+      const sid = asStudentId ?? currentUser?.id;
+      if (!sid) {
+        openAuthModal(courseId);
+        return false;
+      }
+      const existing = data.enrolments.find((e) => e.courseId === courseId && e.studentId === sid);
+      if (existing) {
+        touchCourse(courseId);
+        return true;
+      }
+      const newEnrolment = {
+        id: uid('enr'),
+        studentId: sid,
+        courseId,
+        enrolledAt: nowISO(),
+        lastAccessedAt: nowISO(),
+        completedChapterIds: [],
+        quizScores: {},
+      };
+      setData((d) => ({
+        ...d,
+        enrolments: [...d.enrolments, newEnrolment],
+      }));
+      return true;
     },
-    [currentUser.id],
+    [currentUser, data.enrolments, openAuthModal],
   );
 
   const touchCourse = useCallback(
     (courseId: string) => {
+      if (!currentUser) return;
+      const now = nowISO();
       setData((d) => ({
         ...d,
         enrolments: d.enrolments.map((e) =>
-          e.courseId === courseId && e.studentId === currentUser.id ? { ...e, lastAccessedAt: nowISO() } : e,
+          e.courseId === courseId && e.studentId === currentUser.id ? { ...e, lastAccessedAt: now } : e,
         ),
       }));
     },
-    [currentUser.id],
+    [currentUser],
   );
 
   const completeChapter = useCallback(
     (courseId: string, chapterId: string) => {
+      if (!currentUser) return;
+      const now = nowISO();
       setData((d) => ({
         ...d,
         enrolments: d.enrolments.map((e) => {
           if (e.courseId !== courseId || e.studentId !== currentUser.id) return e;
-          if (e.completedChapterIds.includes(chapterId)) return { ...e, lastAccessedAt: nowISO() };
-          return { ...e, completedChapterIds: [...e.completedChapterIds, chapterId], lastAccessedAt: nowISO() };
+          if (e.completedChapterIds.includes(chapterId)) return { ...e, lastAccessedAt: now };
+          return {
+            ...e,
+            lastAccessedAt: now,
+            completedChapterIds: [...e.completedChapterIds, chapterId],
+          };
         }),
       }));
     },
-    [currentUser.id],
+    [currentUser],
   );
 
   const saveQuizScore = useCallback(
     (courseId: string, chapterId: string, score: number, total: number) => {
-      const passed = Math.round((score / total) * 100) >= 70;
+      if (!currentUser) return;
+      const passed = total > 0 && score / total >= 0.7;
       setData((d) => ({
         ...d,
         enrolments: d.enrolments.map((e) => {
           if (e.courseId !== courseId || e.studentId !== currentUser.id) return e;
-          const scores = e.quizScores ?? {};
           return {
             ...e,
             quizScores: {
-              ...scores,
+              ...e.quizScores,
               [chapterId]: { score, total, passed },
             },
           };
         }),
       }));
     },
-    [currentUser.id],
+    [currentUser],
   );
 
   const issueCertificate = useCallback(
-    (courseId: string, studentId?: string) => {
-      const sid = studentId ?? currentUser.id;
-      let issued: Certificate | undefined;
-      setData((d) => {
-        const existing = d.certificates.find((c) => c.courseId === courseId && c.studentId === sid);
-        if (existing) {
-          issued = existing;
-          return d;
-        }
-        issued = { id: uid('cert'), studentId: sid, courseId, issuedAt: nowISO(), code: makeCode(sid, courseId) };
-        return { ...d, certificates: [...d.certificates, issued] };
-      });
-      return issued!;
+    (courseId: string, studentId?: string): Certificate | undefined => {
+      const sid = studentId ?? currentUser?.id;
+      if (!sid) return undefined;
+      const existing = data.certificates.find((c) => c.courseId === courseId && c.studentId === sid);
+      if (existing) return existing;
+      const cert: Certificate = {
+        id: uid('cert'),
+        studentId: sid,
+        courseId,
+        issuedAt: nowISO(),
+        code: makeCode(),
+      };
+      setData((d) => ({ ...d, certificates: [...d.certificates, cert] }));
+      return cert;
     },
-    [currentUser.id],
+    [data.certificates, currentUser],
   );
 
-  // ── Notes ──────────────────────────────────────────────────
+  // Student Notes
   const noteFor = useCallback(
     (courseId: string, chapterId: string) => {
-      return data.notes.find((n) => n.courseId === courseId && n.chapterId === chapterId && n.studentId === currentUser.id);
+      if (!currentUser) return undefined;
+      return data.notes.find((n) => n.userId === currentUser.id && n.courseId === courseId && n.chapterId === chapterId);
     },
-    [data.notes, currentUser.id],
+    [data.notes, currentUser],
   );
 
   const saveStudentNote = useCallback(
     (courseId: string, chapterId: string, content: string) => {
-      setData((d) => {
-        const existing = d.notes.find((n) => n.courseId === courseId && n.chapterId === chapterId && n.studentId === currentUser.id);
-        if (existing) {
-          return {
-            ...d,
-            notes: d.notes.map((n) =>
-              n.id === existing.id ? { ...n, content: content.trim(), updatedAt: nowISO() } : n,
-            ),
-          };
-        }
-        const newNote: StudentNote = {
-          id: uid('note'),
-          studentId: currentUser.id,
-          courseId,
-          chapterId,
-          content: content.trim(),
-          updatedAt: nowISO(),
-        };
-        return { ...d, notes: [...d.notes, newNote] };
-      });
+      if (!currentUser) return;
+      const existing = data.notes.find((n) => n.userId === currentUser.id && n.courseId === courseId && n.chapterId === chapterId);
+      if (existing) {
+        setData((d) => ({
+          ...d,
+          notes: d.notes.map((n) => (n.id === existing.id ? { ...n, content, updatedAt: nowISO() } : n)),
+        }));
+      } else {
+        setData((d) => ({
+          ...d,
+          notes: [
+            ...d.notes,
+            {
+              id: uid('note'),
+              userId: currentUser.id,
+              courseId,
+              chapterId,
+              content,
+              updatedAt: nowISO(),
+            },
+          ],
+        }));
+      }
     },
-    [currentUser.id],
+    [currentUser, data.notes],
   );
 
-  // ── Discussions ────────────────────────────────────────────
+  // Discussions
   const discussionsFor = useCallback(
     (courseId: string, chapterId: string) => {
-      return data.discussions.filter((disc) => disc.courseId === courseId && disc.chapterId === chapterId);
+      return data.discussions.filter((d) => d.courseId === courseId && d.chapterId === chapterId);
     },
     [data.discussions],
   );
 
   const addDiscussionQuestion = useCallback(
     (courseId: string, chapterId: string, text: string) => {
-      if (!text.trim()) return;
-      const question: DiscussionQuestion = {
+      if (!currentUser) {
+        openAuthModal();
+        return;
+      }
+      const newQuestion: DiscussionQuestion = {
         id: uid('disc'),
         courseId,
         chapterId,
         userId: currentUser.id,
         userName: currentUser.name,
         userRole: currentUser.role,
-        text: text.trim(),
+        text,
         createdAt: nowISO(),
         replies: [],
       };
-      setData((d) => ({ ...d, discussions: [question, ...d.discussions] }));
+      setData((d) => ({
+        ...d,
+        discussions: [newQuestion, ...d.discussions],
+      }));
     },
-    [currentUser],
+    [currentUser, openAuthModal],
   );
 
   const addDiscussionReply = useCallback(
     (questionId: string, text: string) => {
-      if (!text.trim()) return;
+      if (!currentUser) {
+        openAuthModal();
+        return;
+      }
+      const reply = {
+        id: uid('rep'),
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userRole: currentUser.role,
+        text,
+        createdAt: nowISO(),
+      };
       setData((d) => ({
         ...d,
-        discussions: d.discussions.map((disc) => {
-          if (disc.id !== questionId) return disc;
-          const reply = {
-            id: uid('rep'),
-            userId: currentUser.id,
-            userName: currentUser.name,
-            userRole: currentUser.role,
-            text: text.trim(),
-            createdAt: nowISO(),
-          };
-          return { ...disc, replies: [...disc.replies, reply] };
-        }),
+        discussions: d.discussions.map((q) => (q.id === questionId ? { ...q, replies: [...q.replies, reply] } : q)),
       }));
     },
-    [currentUser],
+    [currentUser, openAuthModal],
   );
 
-  // ── Reviews ────────────────────────────────────────────────
+  // Reviews
   const reviewsFor = useCallback(
     (courseId: string) => data.reviews.filter((r) => r.courseId === courseId),
     [data.reviews],
   );
 
   const addCourseReview = useCallback(
-    (courseId: string, rating: number, comment: string) => {
-      if (!comment.trim()) return;
+    (courseId: string, rating: number, comment: string): boolean => {
+      if (!currentUser) {
+        openAuthModal();
+        return false;
+      }
       const review: CourseReview = {
         id: uid('rev'),
         courseId,
         studentId: currentUser.id,
         studentName: currentUser.name,
-        rating: Math.max(1, Math.min(5, rating)),
-        comment: comment.trim(),
+        rating,
+        comment,
         createdAt: nowISO(),
       };
-      setData((d) => {
-        const nextReviews = [review, ...d.reviews];
-        const courseReviews = nextReviews.filter((r) => r.courseId === courseId);
-        const avg = +(courseReviews.reduce((s, r) => s + r.rating, 0) / courseReviews.length).toFixed(1);
-        return {
-          ...d,
-          reviews: nextReviews,
-          courses: d.courses.map((c) =>
-            c.id === courseId ? { ...c, rating: avg, ratingCount: courseReviews.length } : c,
-          ),
-        };
-      });
+      setData((d) => ({
+        ...d,
+        reviews: [review, ...d.reviews],
+      }));
+      return true;
     },
-    [currentUser],
+    [currentUser, openAuthModal],
   );
 
-  // ── Teacher Actions ────────────────────────────────────────
-  const addCourse = useCallback((input: CourseDraftInput, teacherId: string) => {
+  // Course Authoring
+  const addCourse = useCallback((input: CourseDraftInput, teacherId: string): Course => {
     const course: Course = {
       id: uid('c'),
       title: input.title.trim(),
@@ -530,12 +634,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       longDescription: input.longDescription?.trim() || input.description.trim(),
       categoryId: input.categoryId,
       level: input.level,
-      coverImage: input.coverImage ?? '',
+      coverImage: input.coverImage || '',
       teacherId,
       status: 'draft',
       featured: false,
       createdAt: nowISO(),
-      updatedAt: nowISO(),
       chapters: [],
       whatYouLearn: input.whatYouLearn ?? [],
       prerequisites: input.prerequisites ?? [],
@@ -544,7 +647,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rating: 5.0,
       ratingCount: 0,
     };
-    setData((d) => ({ ...d, courses: [...d.courses, course] }));
+    setData((d) => ({ ...d, courses: [course, ...d.courses] }));
     return course;
   }, []);
 
@@ -560,11 +663,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ...d,
       courses: d.courses.filter((c) => c.id !== courseId),
       enrolments: d.enrolments.filter((e) => e.courseId !== courseId),
-      certificates: d.certificates.filter((c) => c.courseId !== courseId),
+      certificates: d.certificates.filter((cert) => cert.courseId !== courseId),
       reviews: d.reviews.filter((r) => r.courseId !== courseId),
-      discussions: d.discussions.filter((disc) => disc.courseId !== courseId),
-      notes: d.notes.filter((n) => n.courseId !== courseId),
-      wishlist: d.wishlist.filter((w) => w.courseId !== courseId),
     }));
   }, []);
 
@@ -583,61 +683,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addChapter = useCallback((courseId: string, input: ChapterDraftInput) => {
+    const chapter: Chapter = {
+      id: uid('chap'),
+      title: input.title.trim(),
+      description: input.description.trim(),
+      durationMin: input.durationMin,
+      freePreview: input.freePreview,
+      videoUrl: input.videoUrl?.trim() || undefined,
+      videoType: input.videoType ?? 'youtube',
+      content: input.content?.trim() || undefined,
+      resources: input.resources ?? [],
+      quiz: input.quiz,
+    };
     setData((d) => ({
       ...d,
-      courses: d.courses.map((c) =>
-        c.id === courseId
-          ? {
-              ...c,
-              updatedAt: nowISO(),
-              chapters: [
-                ...c.chapters,
-                {
-                  id: uid('ch'),
-                  title: input.title.trim(),
-                  description: input.description.trim(),
-                  durationMin: input.durationMin,
-                  freePreview: input.freePreview,
-                  videoUrl: input.videoUrl?.trim(),
-                  videoType: input.videoType,
-                  content: input.content?.trim(),
-                  resources: input.resources ?? [],
-                  quiz: input.quiz,
-                },
-              ],
-            }
-          : c,
-      ),
+      courses: d.courses.map((c) => (c.id === courseId ? { ...c, chapters: [...c.chapters, chapter], updatedAt: nowISO() } : c)),
     }));
   }, []);
 
   const updateChapter = useCallback((courseId: string, chapterId: string, patch: Partial<Chapter>) => {
     setData((d) => ({
       ...d,
-      courses: d.courses.map((c) =>
-        c.id === courseId
-          ? {
-              ...c,
-              updatedAt: nowISO(),
-              chapters: c.chapters.map((chap) => (chap.id === chapterId ? { ...chap, ...patch } : chap)),
-            }
-          : c,
-      ),
+      courses: d.courses.map((c) => {
+        if (c.id !== courseId) return c;
+        return {
+          ...c,
+          chapters: c.chapters.map((ch) => (ch.id === chapterId ? { ...ch, ...patch } : ch)),
+          updatedAt: nowISO(),
+        };
+      }),
     }));
   }, []);
 
   const deleteChapter = useCallback((courseId: string, chapterId: string) => {
     setData((d) => ({
       ...d,
-      courses: d.courses.map((c) =>
-        c.id === courseId
-          ? {
-              ...c,
-              updatedAt: nowISO(),
-              chapters: c.chapters.filter((chap) => chap.id !== chapterId),
-            }
-          : c,
-      ),
+      courses: d.courses.map((c) => {
+        if (c.id !== courseId) return c;
+        return {
+          ...c,
+          chapters: c.chapters.filter((ch) => ch.id !== chapterId),
+          updatedAt: nowISO(),
+        };
+      }),
     }));
   }, []);
 
@@ -645,34 +733,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setData((d) => ({
       ...d,
       courses: d.courses.map((c) => {
-        if (c.id !== courseId || from === to || from < 0 || to < 0 || from >= c.chapters.length || to >= c.chapters.length) return c;
-        const chapters = [...c.chapters];
-        const [moved] = chapters.splice(from, 1);
-        chapters.splice(to, 0, moved);
-        return { ...c, chapters, updatedAt: nowISO() };
+        if (c.id !== courseId) return c;
+        if (from < 0 || from >= c.chapters.length || to < 0 || to >= c.chapters.length) return c;
+        const next = [...c.chapters];
+        const [target] = next.splice(from, 1);
+        next.splice(to, 0, target);
+        return { ...c, chapters: next, updatedAt: nowISO() };
       }),
     }));
   }, []);
 
   const addWhatYouLearn = useCallback((courseId: string, item: string) => {
-    const trimmed = item.trim();
-    if (!trimmed) return;
     setData((d) => ({
       ...d,
-      courses: d.courses.map((c) => (c.id === courseId ? { ...c, whatYouLearn: [...c.whatYouLearn, trimmed] } : c)),
+      courses: d.courses.map((c) => (c.id === courseId ? { ...c, whatYouLearn: [...c.whatYouLearn, item] } : c)),
     }));
   }, []);
 
   const updateWhatYouLearn = useCallback((courseId: string, index: number, item: string) => {
-    const trimmed = item.trim();
-    if (!trimmed) return;
     setData((d) => ({
       ...d,
       courses: d.courses.map((c) => {
         if (c.id !== courseId) return c;
-        const copy = [...c.whatYouLearn];
-        copy[index] = trimmed;
-        return { ...c, whatYouLearn: copy };
+        const next = [...c.whatYouLearn];
+        next[index] = item;
+        return { ...c, whatYouLearn: next };
       }),
     }));
   }, []);
@@ -687,58 +772,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  // ── Admin Actions ──────────────────────────────────────────
-  const addUser = useCallback((input: UserDraftInput) => {
+  // Admin Actions
+  const addUser = useCallback((input: UserDraftInput): User => {
     const user: User = {
       id: uid('u'),
       name: input.name.trim(),
       email: input.email.trim().toLowerCase(),
+      password: input.password?.trim() || 'demo123',
       role: input.role,
       headline: input.headline.trim(),
       bio: input.bio?.trim(),
-      avatar: input.avatar,
+      avatar: input.avatar?.trim(),
       joinedAt: nowISO(),
     };
     setData((d) => ({ ...d, users: [...d.users, user] }));
     return user;
   }, []);
 
-  const deleteUser = useCallback(
-    (userId: string) => {
-      if (userId === DEMO_STUDENT_ID || userId === DEMO_TEACHER_ID || userId === DEMO_ADMIN_ID) {
-        return { ok: false, reason: 'Core platform personas cannot be deleted' };
-      }
-      const teachingCourses = data.courses.filter((c) => c.teacherId === userId).length;
-      if (teachingCourses > 0) {
-        return { ok: false, reason: `This user is instructor of ${teachingCourses} course${teachingCourses === 1 ? '' : 's'}` };
-      }
-      setData((d) => ({
-        ...d,
-        users: d.users.filter((u) => u.id !== userId),
-        enrolments: d.enrolments.filter((e) => e.studentId !== userId),
-        certificates: d.certificates.filter((c) => c.studentId !== userId),
-        reviews: d.reviews.filter((r) => r.studentId !== userId),
-        discussions: d.discussions.filter((disc) => disc.userId !== userId),
-        notes: d.notes.filter((n) => n.studentId !== userId),
-        wishlist: d.wishlist.filter((w) => w.userId !== userId),
-      }));
-      return { ok: true };
-    },
-    [data.courses],
-  );
-
-  const setUserRole = useCallback((userId: string, nextRole: Role) => {
-    setData((d) => ({ ...d, users: d.users.map((u) => (u.id === userId ? { ...u, role: nextRole } : u)) }));
+  const deleteUser = useCallback((userId: string) => {
+    if (userId === DEMO_ADMIN_ID || userId === DEMO_TEACHER_ID || userId === DEMO_STUDENT_ID) {
+      return { ok: false, reason: 'Protected demo system account cannot be deleted.' };
+    }
+    setData((d) => ({
+      ...d,
+      users: d.users.filter((u) => u.id !== userId),
+      enrolments: d.enrolments.filter((e) => e.studentId !== userId),
+      certificates: d.certificates.filter((c) => c.studentId !== userId),
+    }));
+    return { ok: true };
   }, []);
 
-  const addCategory = useCallback((name: string, description: string, icon: CategoryIcon = 'tag') => {
-    const category: Category = { id: uid('cat'), name: name.trim(), description: description.trim(), icon };
-    setData((d) => ({ ...d, categories: [...d.categories, category] }));
-    return category;
+  const setUserRole = useCallback((userId: string, role: Role) => {
+    setData((d) => ({
+      ...d,
+      users: d.users.map((u) => (u.id === userId ? { ...u, role } : u)),
+    }));
+  }, []);
+
+  const addCategory = useCallback((name: string, description: string, icon: CategoryIcon = 'shapes'): Category => {
+    const cat: Category = {
+      id: uid('cat'),
+      name: name.trim(),
+      description: description.trim(),
+      icon,
+    };
+    setData((d) => ({ ...d, categories: [...d.categories, cat] }));
+    return cat;
   }, []);
 
   const renameCategory = useCallback((categoryId: string, name: string) => {
-    setData((d) => ({ ...d, categories: d.categories.map((c) => (c.id === categoryId ? { ...c, name: name.trim() } : c)) }));
+    setData((d) => ({
+      ...d,
+      categories: d.categories.map((c) => (c.id === categoryId ? { ...c, name: name.trim() } : c)),
+    }));
   }, []);
 
   const updateCategory = useCallback((categoryId: string, patch: Partial<Category>) => {
@@ -750,10 +836,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteCategory = useCallback(
     (categoryId: string) => {
-      const used = data.courses.filter((c) => c.categoryId === categoryId).length;
-      if (used > 0) {
-        return { ok: false, reason: `${used} course${used === 1 ? ' is' : 's are'} still using this category` };
-      }
+      const inUse = data.courses.some((c) => c.categoryId === categoryId);
+      if (inUse) return { ok: false, reason: 'Category has courses assigned to it.' };
       setData((d) => ({ ...d, categories: d.categories.filter((c) => c.id !== categoryId) }));
       return { ok: true };
     },
@@ -761,77 +845,137 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const resetDemo = useCallback(() => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* noop */
-    }
-    const clean = buildSeedData();
-    setData(clean);
+    const fresh = buildSeedData();
+    setData(fresh);
     setActiveUserId(DEMO_STUDENT_ID);
     setRoute({ page: 'home' });
-    window.scrollTo({ top: 0 });
-    toast('Platform data restored to fresh production seed state', 'info');
+    toast('Platform reset to default courses and progress');
   }, [toast]);
 
-  const value: AppContextValue = {
-    data,
-    role,
-    route,
-    currentUser,
-    toasts,
-    navigate,
-    switchRole,
-    switchActiveUser,
-    login,
-    register,
-    updateUserProfile,
-    toast,
-    dismissToast,
-    enrolmentFor,
-    certificateFor,
-    enrolledCount,
-    isWishlisted,
-    toggleWishlist,
-    enrol,
-    completeChapter,
-    touchCourse,
-    issueCertificate,
-    saveQuizScore,
-    noteFor,
-    saveStudentNote,
-    discussionsFor,
-    addDiscussionQuestion,
-    addDiscussionReply,
-    reviewsFor,
-    addCourseReview,
-    addCourse,
-    updateCourse,
-    deleteCourse,
-    setCourseStatus,
-    toggleFeatured,
-    addChapter,
-    updateChapter,
-    deleteChapter,
-    moveChapter,
-    addWhatYouLearn,
-    updateWhatYouLearn,
-    deleteWhatYouLearn,
-    addUser,
-    deleteUser,
-    setUserRole,
-    addCategory,
-    renameCategory,
-    updateCategory,
-    deleteCategory,
-    resetDemo,
-  };
+  const value = useMemo<AppContextValue>(
+    () => ({
+      data,
+      role,
+      route,
+      currentUser,
+      isAuthenticated,
+      toasts,
+      authModalOpen,
+      openAuthModal,
+      closeAuthModal,
+      requireAuth,
+      navigate,
+      switchRole,
+      switchActiveUser,
+      login,
+      logout,
+      register,
+      updateUserProfile,
+      toast,
+      dismissToast,
+      enrolmentFor,
+      certificateFor,
+      enrolledCount,
+      isWishlisted,
+      toggleWishlist,
+      enrol,
+      completeChapter,
+      touchCourse,
+      issueCertificate,
+      saveQuizScore,
+      noteFor,
+      saveStudentNote,
+      discussionsFor,
+      addDiscussionQuestion,
+      addDiscussionReply,
+      reviewsFor,
+      addCourseReview,
+      addCourse,
+      updateCourse,
+      deleteCourse,
+      setCourseStatus,
+      toggleFeatured,
+      addChapter,
+      updateChapter,
+      deleteChapter,
+      moveChapter,
+      addWhatYouLearn,
+      updateWhatYouLearn,
+      deleteWhatYouLearn,
+      addUser,
+      deleteUser,
+      setUserRole,
+      addCategory,
+      renameCategory,
+      updateCategory,
+      deleteCategory,
+      resetDemo,
+    }),
+    [
+      data,
+      role,
+      route,
+      currentUser,
+      isAuthenticated,
+      toasts,
+      authModalOpen,
+      openAuthModal,
+      closeAuthModal,
+      requireAuth,
+      navigate,
+      switchRole,
+      switchActiveUser,
+      login,
+      logout,
+      register,
+      updateUserProfile,
+      toast,
+      dismissToast,
+      enrolmentFor,
+      certificateFor,
+      enrolledCount,
+      isWishlisted,
+      toggleWishlist,
+      enrol,
+      completeChapter,
+      touchCourse,
+      issueCertificate,
+      saveQuizScore,
+      noteFor,
+      saveStudentNote,
+      discussionsFor,
+      addDiscussionQuestion,
+      addDiscussionReply,
+      reviewsFor,
+      addCourseReview,
+      addCourse,
+      updateCourse,
+      deleteCourse,
+      setCourseStatus,
+      toggleFeatured,
+      addChapter,
+      updateChapter,
+      deleteChapter,
+      moveChapter,
+      addWhatYouLearn,
+      updateWhatYouLearn,
+      deleteWhatYouLearn,
+      addUser,
+      deleteUser,
+      setUserRole,
+      addCategory,
+      renameCategory,
+      updateCategory,
+      deleteCategory,
+      resetDemo,
+    ],
+  );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
-export function useApp(): AppContextValue {
+export function useApp() {
   const ctx = useContext(AppContext);
-  if (!ctx) throw new Error('useApp must be used inside AppProvider');
+  if (!ctx) throw new Error('useApp must be used within AppProvider');
   return ctx;
 }

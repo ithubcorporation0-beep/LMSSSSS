@@ -3,12 +3,18 @@ import type { Course, Role } from '../types';
 import { useApp } from '../store';
 import { cn, fmtDateShort, timeAgo } from '../lib';
 import { Avatar, Badge, Button, EmptyState, Field, Icon, Modal, PageHeader, Select, StatCard, TextInput } from '../components/ui';
+import { AuthRequiredGate } from './student';
 
 // ─────────────────────────────────────────────────────────────
 // ADMIN · OVERVIEW
 // ─────────────────────────────────────────────────────────────
 export function AdminOverviewPage() {
-  const { data, navigate } = useApp();
+  const { data, currentUser, navigate } = useApp();
+
+  if (!currentUser || currentUser.role !== 'admin') {
+    return <AuthRequiredGate title="Admin Console Access Required" description="Sign in as an administrator (admin@eduflow.io / demo123) to view platform controls and moderation tools." />;
+  }
+
   const students = data.users.filter((u) => u.role === 'student').length;
   const teachers = data.users.filter((u) => u.role === 'teacher').length;
   const admins = data.users.filter((u) => u.role === 'admin').length;
@@ -88,7 +94,7 @@ function RoleBadge({ role }: { role: Role }) {
 // ADMIN · USERS
 // ─────────────────────────────────────────────────────────────
 export function AdminUsersPage() {
-  const { data, setUserRole, addUser, deleteUser, toast } = useApp();
+  const { data, currentUser, setUserRole, addUser, deleteUser, toast } = useApp();
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | Role>('all');
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -99,6 +105,10 @@ export function AdminUsersPage() {
   const [newHeadline, setNewHeadline] = useState('');
   const [newRole, setNewRole] = useState<Role>('student');
   const [addErrors, setAddErrors] = useState<Record<string, string>>({});
+
+  if (!currentUser || currentUser.role !== 'admin') {
+    return <AuthRequiredGate title="Admin Access Required" description="Sign in as an administrator (admin@eduflow.io / demo123) to manage users." />;
+  }
 
   const q = query.trim().toLowerCase();
   const rows = [...data.users]
@@ -302,10 +312,14 @@ export function AdminUsersPage() {
 // ADMIN · COURSES
 // ─────────────────────────────────────────────────────────────
 export function AdminCoursesPage() {
-  const { data, enrolledCount, setCourseStatus, toggleFeatured, deleteCourse, toast, navigate } = useApp();
+  const { data, currentUser, enrolledCount, setCourseStatus, toggleFeatured, deleteCourse, toast, navigate } = useApp();
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
   const [deleteCourseTarget, setDeleteCourseTarget] = useState<Course | null>(null);
+
+  if (!currentUser || currentUser.role !== 'admin') {
+    return <AuthRequiredGate title="Admin Access Required" description="Sign in as an administrator (admin@eduflow.io / demo123) to moderate courses." />;
+  }
 
   const q = query.trim().toLowerCase();
   const rows = [...data.courses]
@@ -479,12 +493,16 @@ export function AdminCoursesPage() {
 // ADMIN · CATEGORIES
 // ─────────────────────────────────────────────────────────────
 export function AdminCategoriesPage() {
-  const { data, addCategory, updateCategory, deleteCategory, toast } = useApp();
+  const { data, currentUser, addCategory, updateCategory, deleteCategory, toast } = useApp();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [icon, setIcon] = useState<Parameters<typeof Icon>[0]['name']>('shapes');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
+
+  if (!currentUser || currentUser.role !== 'admin') {
+    return <AuthRequiredGate title="Admin Access Required" description="Sign in as an administrator (admin@eduflow.io / demo123) to manage categories." />;
+  }
 
   const submitAdd = (e: React.FormEvent) => {
     e.preventDefault();

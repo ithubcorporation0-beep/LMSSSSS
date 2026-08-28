@@ -11,28 +11,29 @@ interface NavItem {
   icon: IconName;
   to: Route;
   activeOn: string[];
+  requiresAuth?: boolean;
 }
 
 const NAVS: Record<Role, NavItem[]> = {
   student: [
-    { label: 'Dashboard', icon: 'home', to: { page: 's-dash' }, activeOn: ['s-dash'] },
     { label: 'Browse catalog', icon: 'search', to: { page: 'catalog' }, activeOn: ['catalog', 'course'] },
-    { label: 'My learning', icon: 'book-open', to: { page: 's-courses' }, activeOn: ['s-courses', 's-learn'] },
-    { label: 'Wishlist', icon: 'bookmark', to: { page: 's-wishlist' }, activeOn: ['s-wishlist'] },
+    { label: 'Dashboard', icon: 'home', to: { page: 's-dash' }, activeOn: ['s-dash'], requiresAuth: true },
+    { label: 'My learning', icon: 'book-open', to: { page: 's-courses' }, activeOn: ['s-courses', 's-learn'], requiresAuth: true },
+    { label: 'Wishlist', icon: 'bookmark', to: { page: 's-wishlist' }, activeOn: ['s-wishlist'], requiresAuth: true },
     { label: 'Certificates', icon: 'award', to: { page: 's-certs' }, activeOn: ['s-certs', 'verify'] },
   ],
   teacher: [
-    { label: 'Studio', icon: 'home', to: { page: 't-dash' }, activeOn: ['t-dash'] },
-    { label: 'My courses', icon: 'layers', to: { page: 't-courses' }, activeOn: ['t-courses', 't-edit'] },
-    { label: 'Students', icon: 'users', to: { page: 't-students' }, activeOn: ['t-students'] },
-    { label: 'Analytics', icon: 'bar-chart', to: { page: 't-analytics' }, activeOn: ['t-analytics'] },
+    { label: 'Studio', icon: 'home', to: { page: 't-dash' }, activeOn: ['t-dash'], requiresAuth: true },
+    { label: 'My courses', icon: 'layers', to: { page: 't-courses' }, activeOn: ['t-courses', 't-edit'], requiresAuth: true },
+    { label: 'Students', icon: 'users', to: { page: 't-students' }, activeOn: ['t-students'], requiresAuth: true },
+    { label: 'Analytics', icon: 'bar-chart', to: { page: 't-analytics' }, activeOn: ['t-analytics'], requiresAuth: true },
     { label: 'Catalog preview', icon: 'globe', to: { page: 'catalog' }, activeOn: ['catalog', 'course'] },
   ],
   admin: [
-    { label: 'Overview', icon: 'home', to: { page: 'a-dash' }, activeOn: ['a-dash'] },
-    { label: 'Users', icon: 'users', to: { page: 'a-users' }, activeOn: ['a-users'] },
-    { label: 'Courses', icon: 'layers', to: { page: 'a-courses' }, activeOn: ['a-courses'] },
-    { label: 'Categories', icon: 'tag', to: { page: 'a-cats' }, activeOn: ['a-cats'] },
+    { label: 'Overview', icon: 'home', to: { page: 'a-dash' }, activeOn: ['a-dash'], requiresAuth: true },
+    { label: 'Users', icon: 'users', to: { page: 'a-users' }, activeOn: ['a-users'], requiresAuth: true },
+    { label: 'Courses', icon: 'layers', to: { page: 'a-courses' }, activeOn: ['a-courses'], requiresAuth: true },
+    { label: 'Categories', icon: 'tag', to: { page: 'a-cats' }, activeOn: ['a-cats'], requiresAuth: true },
   ],
 };
 
@@ -44,12 +45,10 @@ const ROLE_META: Record<Role, { label: string; icon: IconName; dot: string; who:
 
 function UserMenu({
   onOpenProfile,
-  onOpenAuth,
 }: {
   onOpenProfile: () => void;
-  onOpenAuth: () => void;
 }) {
-  const { data, currentUser, switchActiveUser, switchRole, resetDemo } = useApp();
+  const { data, currentUser, switchActiveUser, switchRole, logout, resetDemo } = useApp();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -66,6 +65,8 @@ function UserMenu({
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
+
+  if (!currentUser) return null;
 
   const meta = ROLE_META[currentUser.role];
 
@@ -114,16 +115,16 @@ function UserMenu({
                 Edit Profile
               </Button>
               <Button
-                variant="subtle"
+                variant="danger"
                 size="sm"
                 className="text-xs"
-                icon="user-plus"
+                icon="log-out"
                 onClick={() => {
                   setOpen(false);
-                  onOpenAuth();
+                  logout();
                 }}
               >
-                Switch
+                Sign Out
               </Button>
             </div>
           </div>
@@ -218,9 +219,8 @@ function Header({
   onOpenProfile: () => void;
   onOpenAuth: () => void;
 }) {
-  const { role, route, navigate, data, currentUser } = useApp();
+  const { role, route, navigate, data, currentUser, requireAuth } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const items = NAVS[role];
 
@@ -228,14 +228,21 @@ function Header({
     setMobileOpen(false);
   }, [route]);
 
-  const wishlistCount = data.wishlist.filter((w) => w.userId === currentUser.id).length;
+  const wishlistCount = currentUser ? data.wishlist.filter((w) => w.userId === currentUser.id).length : 0;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
     navigate({ page: 'catalog', search: searchQuery.trim() });
-    setSearchOpen(false);
     setSearchQuery('');
+  };
+
+  const handleNavClick = (item: NavItem) => {
+    if (item.requiresAuth && !currentUser) {
+      requireAuth(() => navigate(item.to));
+      return;
+    }
+    navigate(item.to);
   };
 
   return (
@@ -258,7 +265,7 @@ function Header({
             return (
               <button
                 key={item.label}
-                onClick={() => navigate(item.to)}
+                onClick={() => handleNavClick(item)}
                 className={cn(
                   'flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-semibold transition',
                   active ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
@@ -272,7 +279,7 @@ function Header({
         </nav>
 
         {/* Right Action Cluster */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {/* Quick Search */}
           <form onSubmit={handleSearchSubmit} className="relative hidden md:block">
             <input
@@ -286,21 +293,34 @@ function Header({
           </form>
 
           {/* Wishlist quick link */}
-          <button
-            onClick={() => navigate({ page: 's-wishlist' })}
-            aria-label="View saved courses"
-            className="relative rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-          >
-            <Icon name="bookmark" className="h-5 w-5" />
-            {wishlistCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-[9px] font-bold text-white shadow-sm">
-                {wishlistCount}
-              </span>
-            )}
-          </button>
+          {currentUser && (
+            <button
+              onClick={() => navigate({ page: 's-wishlist' })}
+              aria-label="View saved courses"
+              className="relative rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            >
+              <Icon name="bookmark" className="h-5 w-5" />
+              {wishlistCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-[9px] font-bold text-white shadow-sm">
+                  {wishlistCount}
+                </span>
+              )}
+            </button>
+          )}
 
-          {/* User Account Menu */}
-          <UserMenu onOpenProfile={onOpenProfile} onOpenAuth={onOpenAuth} />
+          {/* User Account Menu OR Sign In / Register Buttons */}
+          {currentUser ? (
+            <UserMenu onOpenProfile={onOpenProfile} />
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" icon="log-in" onClick={onOpenAuth}>
+                Sign In
+              </Button>
+              <Button size="sm" icon="sparkles" onClick={onOpenAuth}>
+                Get Started
+              </Button>
+            </div>
+          )}
 
           {/* Mobile menu hamburger */}
           <button
@@ -334,7 +354,10 @@ function Header({
             return (
               <button
                 key={item.label}
-                onClick={() => navigate(item.to)}
+                onClick={() => {
+                  setMobileOpen(false);
+                  handleNavClick(item);
+                }}
                 className={cn(
                   'mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition',
                   active ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100',
@@ -384,17 +407,19 @@ function Toasts() {
 
 function ProfileModalWrapper({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { currentUser, updateUserProfile, toast } = useApp();
-  const [name, setName] = useState(currentUser.name);
-  const [headline, setHeadline] = useState(currentUser.headline);
-  const [bio, setBio] = useState(currentUser.bio ?? '');
+  const [name, setName] = useState('');
+  const [headline, setHeadline] = useState('');
+  const [bio, setBio] = useState('');
 
   useEffect(() => {
-    if (open) {
+    if (open && currentUser) {
       setName(currentUser.name);
       setHeadline(currentUser.headline);
       setBio(currentUser.bio ?? '');
     }
   }, [open, currentUser]);
+
+  if (!currentUser) return null;
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -436,26 +461,32 @@ function ProfileModalWrapper({ open, onClose }: { open: boolean; onClose: () => 
   );
 }
 
-function AuthModalWrapper({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { login, register, data, switchActiveUser } = useApp();
+export function AuthModal() {
+  const { authModalOpen, closeAuthModal, login, register } = useApp();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [headline, setHeadline] = useState('');
   const [role, setRole] = useState<Role>('student');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (authModalOpen) {
+      setError('');
+    }
+  }, [authModalOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (mode === 'signin') {
-      const ok = login(email);
-      if (!ok) {
-        setError('No account found with that email. Try one of the quick switch accounts below or register.');
+      const res = login(email, password);
+      if (!res.ok) {
+        setError(res.error ?? 'Invalid email or password. Use demo account: student@eduflow.io / demo123');
         return;
       }
-      onClose();
     } else {
       if (!name.trim()) {
         setError('Please provide your name');
@@ -468,30 +499,68 @@ function AuthModalWrapper({ open, onClose }: { open: boolean; onClose: () => voi
       register({
         name,
         email,
+        password: password || 'demo123',
         headline: headline.trim() || (role === 'teacher' ? 'Course Instructor' : 'Active Learner'),
         role,
       });
-      onClose();
     }
   };
 
+  const handleQuickLogin = (demoEmail: string) => {
+    setEmail(demoEmail);
+    setPassword('demo123');
+    login(demoEmail, 'demo123');
+  };
+
   return (
-    <Modal open={open} onClose={onClose} title={mode === 'signin' ? 'Sign in to EduFlow' : 'Create an EduFlow Account'}>
+    <Modal open={authModalOpen} onClose={closeAuthModal} title={mode === 'signin' ? 'Sign In to EduFlow' : 'Create an EduFlow Account'}>
       <div className="p-6">
-        <div className="mb-5 flex rounded-xl bg-slate-100 p-1">
+        {/* Dedicated 1-Click Demo Student Banner */}
+        <div className="mb-6 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 p-4 text-white shadow-lift">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white shadow-sm">
+              <Icon name="sparkles" className="h-4 w-4" />
+            </span>
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-100">Ready-To-Use Demo Account</span>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-indigo-100">
+            Sign in instantly to unlock all video lessons, quizzes, and personal notes.
+          </p>
+          <div className="mt-3 flex items-center justify-between rounded-xl bg-black/20 px-3 py-2 text-xs font-mono">
+            <div>
+              <p className="text-indigo-200 text-[10px] uppercase font-sans font-bold">Demo Student Email</p>
+              <p className="font-bold text-white">student@eduflow.io</p>
+            </div>
+            <div className="text-right">
+              <p className="text-indigo-200 text-[10px] uppercase font-sans font-bold">Password</p>
+              <p className="font-bold text-white">demo123</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            className="mt-3 w-full bg-white text-indigo-700 font-bold hover:bg-indigo-50 shadow-md"
+            icon="zap"
+            onClick={() => handleQuickLogin('student@eduflow.io')}
+          >
+            ⚡ 1-Click Sign In as Demo Student
+          </Button>
+        </div>
+
+        {/* Tab switch signin/signup */}
+        <div className="mb-4 flex rounded-xl bg-slate-100 p-1">
           <button
             type="button"
             onClick={() => { setMode('signin'); setError(''); }}
             className={cn('flex-1 rounded-lg py-1.5 text-xs font-bold transition', mode === 'signin' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900')}
           >
-            Sign In
+            Sign In with Email
           </button>
           <button
             type="button"
             onClick={() => { setMode('signup'); setError(''); }}
             className={cn('flex-1 rounded-lg py-1.5 text-xs font-bold transition', mode === 'signup' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900')}
           >
-            Create Account
+            Register New Account
           </button>
         </div>
 
@@ -506,10 +575,10 @@ function AuthModalWrapper({ open, onClose }: { open: boolean; onClose: () => voi
           {mode === 'signup' && (
             <>
               <Field label="Full Name">
-                <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Jordan Miller" required />
+                <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Maya Chen" required />
               </Field>
               <Field label="Headline">
-                <TextInput value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="e.g. Software Engineer / Product Designer" />
+                <TextInput value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="e.g. Software Engineer / Active Learner" />
               </Field>
               <Field label="I want to">
                 <Select value={role} onChange={(e) => setRole(e.target.value as Role)}>
@@ -521,40 +590,44 @@ function AuthModalWrapper({ open, onClose }: { open: boolean; onClose: () => voi
           )}
 
           <Field label="Email Address">
-            <TextInput value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@domain.com" required />
+            <TextInput value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="student@eduflow.io" required />
+          </Field>
+
+          <Field label="Password">
+            <TextInput value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="demo123" required />
           </Field>
 
           <Button className="w-full mt-2" icon={mode === 'signin' ? 'log-in' : 'user-plus'} type="submit">
-            {mode === 'signin' ? 'Sign In' : 'Create Free Account'}
+            {mode === 'signin' ? 'Sign In & Open Course' : 'Create Free Account & Open Course'}
           </Button>
         </form>
 
-        {/* Quick persona login shortcuts */}
-        <div className="mt-6 border-t border-slate-100 pt-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Quick Demo Accounts</p>
-          <div className="mt-2 space-y-1.5">
-            {data.users.slice(0, 3).map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => {
-                  switchActiveUser(u.id);
-                  onClose();
-                }}
-                className="flex w-full items-center justify-between rounded-xl bg-slate-50 p-2 text-left text-xs transition hover:bg-indigo-50"
-              >
-                <div className="flex items-center gap-2">
-                  <Avatar name={u.name} size="xs" />
-                  <div>
-                    <p className="font-bold text-slate-800">{u.name}</p>
-                    <p className="text-[10px] text-slate-400">{u.email}</p>
-                  </div>
-                </div>
-                <Badge tone={u.role === 'admin' ? 'violet' : u.role === 'teacher' ? 'indigo' : 'emerald'} className="text-[10px]">
-                  {u.role}
-                </Badge>
-              </button>
-            ))}
+        {/* Other Persona Shortcuts */}
+        <div className="mt-5 border-t border-slate-100 pt-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Other Demo Personas</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleQuickLogin('instructor@eduflow.io')}
+              className="flex items-center gap-2 rounded-xl bg-slate-50 p-2 text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50"
+            >
+              <Avatar name="Sarah Jenkins" size="xs" />
+              <div className="min-w-0">
+                <p className="truncate font-bold text-slate-900 text-[11px]">Instructor</p>
+                <p className="text-[9px] text-slate-400">Sarah Jenkins</p>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickLogin('admin@eduflow.io')}
+              className="flex items-center gap-2 rounded-xl bg-slate-50 p-2 text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50"
+            >
+              <Avatar name="Alexander Wright" size="xs" />
+              <div className="min-w-0">
+                <p className="truncate font-bold text-slate-900 text-[11px]">Admin</p>
+                <p className="text-[9px] text-slate-400">Alexander Wright</p>
+              </div>
+            </button>
           </div>
         </div>
       </div>
@@ -563,7 +636,7 @@ function AuthModalWrapper({ open, onClose }: { open: boolean; onClose: () => voi
 }
 
 function Footer() {
-  const { navigate, switchRole } = useApp();
+  const { navigate, switchRole, requireAuth } = useApp();
   return (
     <footer className="mt-20 border-t border-slate-200/80 bg-white" data-no-print>
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
@@ -584,8 +657,8 @@ function Footer() {
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Learning</p>
           <ul className="mt-4 space-y-2.5 text-sm font-semibold text-slate-600">
             <li><button className="transition hover:text-indigo-600" onClick={() => navigate({ page: 'catalog' })}>Course Catalog</button></li>
-            <li><button className="transition hover:text-indigo-600" onClick={() => navigate({ page: 's-courses' })}>My Enrolled Courses</button></li>
-            <li><button className="transition hover:text-indigo-600" onClick={() => navigate({ page: 's-wishlist' })}>Saved Wishlist</button></li>
+            <li><button className="transition hover:text-indigo-600" onClick={() => requireAuth(() => navigate({ page: 's-courses' }))}>My Enrolled Courses</button></li>
+            <li><button className="transition hover:text-indigo-600" onClick={() => requireAuth(() => navigate({ page: 's-wishlist' }))}>Saved Wishlist</button></li>
             <li><button className="transition hover:text-indigo-600" onClick={() => navigate({ page: 's-certs' })}>Certificates</button></li>
           </ul>
         </div>
@@ -593,9 +666,9 @@ function Footer() {
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Teaching</p>
           <ul className="mt-4 space-y-2.5 text-sm font-semibold text-slate-600">
             <li><button className="transition hover:text-indigo-600" onClick={() => switchRole('teacher')}>Instructor Studio</button></li>
-            <li><button className="transition hover:text-indigo-600" onClick={() => navigate({ page: 't-courses', newCourse: true })}>Create New Course</button></li>
-            <li><button className="transition hover:text-indigo-600" onClick={() => navigate({ page: 't-students' })}>Learner Roster</button></li>
-            <li><button className="transition hover:text-indigo-600" onClick={() => navigate({ page: 't-analytics' })}>Course Analytics</button></li>
+            <li><button className="transition hover:text-indigo-600" onClick={() => requireAuth(() => navigate({ page: 't-courses', newCourse: true }))}>Create New Course</button></li>
+            <li><button className="transition hover:text-indigo-600" onClick={() => requireAuth(() => navigate({ page: 't-students' }))}>Learner Roster</button></li>
+            <li><button className="transition hover:text-indigo-600" onClick={() => requireAuth(() => navigate({ page: 't-analytics' }))}>Course Analytics</button></li>
           </ul>
         </div>
         <div>
@@ -615,17 +688,17 @@ function Footer() {
 }
 
 export default function Layout({ children }: { children: ReactNode }) {
+  const { openAuthModal } = useApp();
   const [profileOpen, setProfileOpen] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50/70 text-slate-900">
-      <Header onOpenProfile={() => setProfileOpen(true)} onOpenAuth={() => setAuthOpen(true)} />
+      <Header onOpenProfile={() => setProfileOpen(true)} onOpenAuth={() => openAuthModal()} />
       <main className="flex-1 pt-16">{children}</main>
       <Footer />
       <Toasts />
       <ProfileModalWrapper open={profileOpen} onClose={() => setProfileOpen(false)} />
-      <AuthModalWrapper open={authOpen} onClose={() => setAuthOpen(false)} />
+      <AuthModal />
     </div>
   );
 }

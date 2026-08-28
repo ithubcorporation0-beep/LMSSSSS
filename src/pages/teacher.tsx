@@ -4,10 +4,15 @@ import { useApp } from '../store';
 import { COVER_PRESETS, LEVELS } from '../data/seed';
 import { cn, courseMinutes, fmtDateShort, fmtDuration, humanJoin, progressOf, timeAgo } from '../lib';
 import { Avatar, Badge, Button, EmptyState, Field, Icon, Modal, PageHeader, ProgressBar, Select, StatCard, TextArea, TextInput, VideoPlayer } from '../components/ui';
+import { AuthRequiredGate } from './student';
 
 export function TeacherDashboard() {
   const { data, currentUser, navigate } = useApp();
   const my = useTeacherCourses();
+
+  if (!currentUser) {
+    return <AuthRequiredGate title="Sign In to Creator Studio" description="Manage your course curriculum, video lessons, and learner progress by signing in." />;
+  }
 
   const uniqueStudents = new Set(my.enrolments.map((e) => e.studentId)).size;
   const publishedCount = my.courses.filter((c) => c.status === 'published').length;
@@ -104,11 +109,12 @@ export function TeacherDashboard() {
 function useTeacherCourses() {
   const { data, currentUser } = useApp();
   return useMemo(() => {
+    if (!currentUser) return { courses: [], enrolments: [] };
     const courses = data.courses.filter((c) => c.teacherId === currentUser.id);
     const ids = new Set(courses.map((c) => c.id));
     const enrolments = data.enrolments.filter((e) => ids.has(e.courseId));
     return { courses, enrolments };
-  }, [data, currentUser.id]);
+  }, [data, currentUser]);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -119,6 +125,10 @@ export function TeacherCoursesPage({ initialOpenNew }: { initialOpenNew?: boolea
   const my = useTeacherCourses();
   const [newOpen, setNewOpen] = useState(initialOpenNew ?? false);
   const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
+
+  if (!currentUser) {
+    return <AuthRequiredGate title="Sign In Required" description="Sign in as an instructor to create and manage courses." />;
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
@@ -335,12 +345,16 @@ function NewCourseModal({
 // ─────────────────────────────────────────────────────────────
 export function CourseEditorPage({ courseId }: { courseId: string }) {
   const app = useApp();
-  const { data, navigate, toast, updateCourse, setCourseStatus } = app;
+  const { data, navigate, currentUser, toast, updateCourse, setCourseStatus } = app;
   const course = data.courses.find((c) => c.id === courseId);
 
   const [chapterModalOpen, setChapterModalOpen] = useState(false);
   const [editingChapter, setEditingChapter] = useState<Chapter | undefined>(undefined);
   const [coverOpen, setCoverOpen] = useState(false);
+
+  if (!currentUser) {
+    return <AuthRequiredGate title="Sign In Required" description="Sign in as an instructor to edit and author course chapters." />;
+  }
 
   if (!course) {
     return (
@@ -759,24 +773,25 @@ function ChapterAuthorModal({
 // TEACHER · STUDENTS
 // ─────────────────────────────────────────────────────────────
 export function TeacherStudentsPage() {
-  const { data } = useApp();
+  const { data, currentUser } = useApp();
   const my = useTeacherCourses();
   const [query, setQuery] = useState('');
   const [courseFilter, setCourseFilter] = useState<string | 'all'>('all');
 
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return my.enrolments
-      .map((e) => ({
-        enrolment: e,
-        student: data.users.find((u) => u.id === e.studentId),
-        course: data.courses.find((c) => c.id === e.courseId),
-      }))
-      .filter((r) => r.student && r.course)
-      .filter((r) => courseFilter === 'all' || r.course!.id === courseFilter)
-      .filter((r) => !q || r.student!.name.toLowerCase().includes(q) || r.student!.email.toLowerCase().includes(q))
-      .sort((a, b) => b.enrolment.enrolledAt.localeCompare(a.enrolment.enrolledAt));
-  }, [my.enrolments, query, courseFilter, data.users, data.courses]);
+  if (!currentUser) {
+    return <AuthRequiredGate title="Sign In Required" description="Sign in as an instructor to view your enrolled students." />;
+  }
+
+  const rows = my.enrolments
+    .map((e) => ({
+      enrolment: e,
+      student: data.users.find((u) => u.id === e.studentId),
+      course: data.courses.find((c) => c.id === e.courseId),
+    }))
+    .filter((r) => r.student && r.course)
+    .filter((r) => courseFilter === 'all' || r.course!.id === courseFilter)
+    .filter((r) => !query || r.student!.name.toLowerCase().includes(query.toLowerCase()) || r.student!.email.toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => b.enrolment.enrolledAt.localeCompare(a.enrolment.enrolledAt));
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
@@ -848,7 +863,12 @@ export function TeacherStudentsPage() {
 // TEACHER · ANALYTICS
 // ─────────────────────────────────────────────────────────────
 export function TeacherAnalyticsPage() {
+  const { currentUser } = useApp();
   const my = useTeacherCourses();
+
+  if (!currentUser) {
+    return <AuthRequiredGate title="Sign In Required" description="Sign in as an instructor to view course performance analytics." />;
+  }
 
   const days = useMemo(() => {
     const out: { key: string; label: string; count: number }[] = [];
