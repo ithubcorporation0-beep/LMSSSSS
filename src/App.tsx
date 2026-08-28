@@ -1,7 +1,7 @@
 import { AppProvider, useApp } from './store';
 import Layout from './components/Layout';
 import { HomePage, CatalogPage, CourseDetailPage } from './pages/public';
-import { StudentDashboard, StudentCoursesPage, LearningPage, CertificatesPage } from './pages/student';
+import { StudentDashboard, StudentCoursesPage, StudentWishlistPage, LearningPage, CertificatesPage, CertificateVerifyPage } from './pages/student';
 import { TeacherDashboard, TeacherCoursesPage, CourseEditorPage, TeacherStudentsPage, TeacherAnalyticsPage } from './pages/teacher';
 import { AdminOverviewPage, AdminUsersPage, AdminCoursesPage, AdminCategoriesPage } from './pages/admin';
 
@@ -11,17 +11,21 @@ function Router() {
     case 'home':
       return <HomePage />;
     case 'catalog':
-      return <CatalogPage initialCategoryId={route.categoryId} />;
+      return <CatalogPage initialCategoryId={route.categoryId} search={route.search} />;
     case 'course':
       return <CourseDetailPage courseId={route.id} />;
     case 's-dash':
       return <StudentDashboard />;
     case 's-courses':
       return <StudentCoursesPage />;
+    case 's-wishlist':
+      return <StudentWishlistPage />;
     case 's-learn':
       return <LearningPage courseId={route.courseId} chapterId={route.chapterId} />;
     case 's-certs':
       return <CertificatesPage />;
+    case 'verify':
+      return <CertificateVerifyPage initialCode={route.code} />;
     case 't-dash':
       return <TeacherDashboard />;
     case 't-courses':
@@ -47,7 +51,6 @@ function Router() {
 
 function Shell() {
   const { route } = useApp();
-  // remount on navigation for a clean page transition
   const key = JSON.stringify(route);
   return (
     <Layout>

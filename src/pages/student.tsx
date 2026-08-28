@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Certificate, Chapter, Course } from '../types';
+import type { Certificate, Chapter, Course, DiscussionQuestion } from '../types';
 import { useApp } from '../store';
-import { cn, firstName, fmtDate, nextChapter, progressOf } from '../lib';
-import { Avatar, Badge, Button, EmptyState, Icon, LevelBadge, Modal, PageHeader, ProgressBar, StatCard } from '../components/ui';
+import { cn, firstName, fmtDate, makeCode, nextChapter, progressOf, timeAgo } from '../lib';
+import { Avatar, Badge, Button, EmptyState, Icon, LevelBadge, MarkdownViewer, Modal, NotesPad, PageHeader, ProgressBar, QuizWidget, StatCard, StarRating, VideoPlayer } from '../components/ui';
 import { CourseCard } from './public';
 
 // ─────────────────────────────────────────────────────────────
@@ -37,71 +37,62 @@ export function StudentDashboard() {
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-slate-400">{today}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{today}</p>
           <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
             Welcome back, {firstName(currentUser.name)}
           </h1>
-          <p className="mt-1.5 text-sm text-slate-500">Small steps, every day — that&apos;s how courses get finished.</p>
+          <p className="mt-1.5 text-sm text-slate-500">Pick up where you left off and keep building your skills.</p>
         </div>
-        <Button variant="secondary" icon="search" onClick={() => navigate({ page: 'catalog' })}>
-          Find a new course
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" icon="bookmark" onClick={() => navigate({ page: 's-wishlist' })}>
+            Saved Wishlist
+          </Button>
+          <Button icon="search" onClick={() => navigate({ page: 'catalog' })}>
+            Find New Course
+          </Button>
+        </div>
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
-        <StatCard icon="book-open" label="Courses enrolled" value={myEnrolments.length} tint="indigo" sub="All free, all yours forever." />
-        <StatCard icon="check-circle" label="Courses completed" value={completedCourses} tint="emerald" sub={completedCourses > 0 ? 'Certificates unlocked by finishing.' : 'Finish every chapter to complete a course.'} />
-        <StatCard icon="layers" label="Chapters completed" value={chaptersDone} tint="violet" sub="Every tick counts towards a certificate." />
+        <StatCard icon="book-open" label="Courses Enrolled" value={myEnrolments.length} tint="indigo" sub="Active learning roadmaps." />
+        <StatCard icon="check-circle" label="Courses Completed" value={completedCourses} tint="emerald" sub="Unlocked verifiable certificates." />
+        <StatCard icon="layers" label="Chapters Finished" value={chaptersDone} tint="violet" sub="Video lessons &amp; quizzes mastered." />
       </div>
 
-      {/* empty shelf */}
-      {myEnrolments.length === 0 && (
-        <div className="mt-8 rounded-3xl border border-slate-200/80 bg-white p-10 text-center shadow-soft">
-          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-            <Icon name="book-open" className="h-7 w-7" />
-          </span>
-          <h3 className="mt-4 text-lg font-bold text-slate-900">Your learning shelf is clean</h3>
-          <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-            You haven&apos;t enrolled in any courses yet. Explore the course catalog to start learning from chapter 1 with 0% progress.
-          </p>
-          <div className="mt-6 flex justify-center gap-3">
-            <Button iconRight="arrow-right" onClick={() => navigate({ page: 'catalog' })}>
-              Browse course catalog
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* continue learning */}
+      {/* Continue Learning Active Hero Card */}
       {recentCourse && recentProgress && (
         <div className="mt-8 overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-slate-900/5">
-          <div className="grid sm:grid-cols-[240px_1fr]">
-            <div className="relative h-40 sm:h-full">
+          <div className="grid sm:grid-cols-[280px_1fr]">
+            <div className="relative h-44 sm:h-full">
               <img src={recentCourse.coverImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
               {recentProgress.pct >= 100 && (
-                <span className="absolute left-3 top-3"><Badge tone="emerald" icon="check-circle" className="bg-white/95 shadow">Completed</Badge></span>
+                <span className="absolute left-3 top-3">
+                  <Badge tone="emerald" icon="check-circle" className="bg-white/95 shadow">Completed</Badge>
+                </span>
               )}
             </div>
             <div className="p-6 sm:p-8">
-              <Badge tone="indigo" icon="zap" className="mb-3">Continue learning</Badge>
+              <Badge tone="indigo" icon="zap" className="mb-3">Active Lesson</Badge>
               <h2 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">{recentCourse.title}</h2>
-              <p className="mt-1.5 flex items-center gap-2 text-sm text-slate-500">
+              <p className="mt-1.5 flex items-center gap-2 text-xs text-slate-500">
                 <Avatar name={recentTeacher?.name ?? ''} size="xs" />
-                {recentTeacher?.name} · {recentCourse.chapters.length} chapters
+                {recentTeacher?.name} &middot; {recentCourse.chapters.length} chapters
               </p>
               <div className="mt-5 flex items-center gap-4">
                 <ProgressBar value={recentProgress.pct} className="flex-1" />
-                <span className={cn('text-sm font-extrabold', recentProgress.pct >= 100 ? 'text-emerald-600' : 'text-indigo-600')}>{recentProgress.pct}%</span>
+                <span className={cn('text-sm font-extrabold', recentProgress.pct >= 100 ? 'text-emerald-600' : 'text-indigo-600')}>
+                  {recentProgress.pct}%
+                </span>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button
                   icon={recentProgress.pct >= 100 ? 'eye' : 'play'}
                   onClick={() => navigate({ page: 's-learn', courseId: recentCourse.id, chapterId: nextChapter(recentCourse, recent) })}
                 >
-                  {recentProgress.pct >= 100 ? 'Review course' : 'Resume chapter'}
+                  {recentProgress.pct >= 100 ? 'Review Course' : 'Continue Chapter'}
                 </Button>
                 <Button variant="ghost" onClick={() => navigate({ page: 's-courses' })}>
-                  All my courses
+                  All Enrolled Courses
                 </Button>
               </div>
             </div>
@@ -109,15 +100,15 @@ export function StudentDashboard() {
         </div>
       )}
 
-      {/* recommended */}
+      {/* Recommended Courses */}
       {recommended.length > 0 && (
         <section className="mt-12">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-xl font-extrabold tracking-tight text-slate-900">Recommended for you</h2>
-              <p className="mt-1 text-sm text-slate-500">Fresh picks from the catalog you haven&apos;t started yet.</p>
+              <h2 className="text-xl font-extrabold tracking-tight text-slate-900">Recommended For You</h2>
+              <p className="mt-1 text-sm text-slate-500">Fresh masterclasses ready to explore.</p>
             </div>
-            <Button variant="ghost" iconRight="arrow-right" onClick={() => navigate({ page: 'catalog' })}>Browse catalog</Button>
+            <Button variant="ghost" iconRight="arrow-right" onClick={() => navigate({ page: 'catalog' })}>Browse Catalog</Button>
           </div>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {recommended.map((c) => (
@@ -155,9 +146,9 @@ export function StudentCoursesPage() {
       <div className="mx-auto max-w-2xl px-4 py-16">
         <EmptyState
           icon="book-open"
-          title="No courses yet"
-          description="Once you enrol, your courses and progress will live here. The whole catalog is free — pick something that excites you."
-          action={<Button iconRight="arrow-right" onClick={() => navigate({ page: 'catalog' })}>Browse the catalog</Button>}
+          title="No enrolled courses yet"
+          description="Enrol in any course from the catalog to start learning with chapter tracking and certificate rewards."
+          action={<Button iconRight="arrow-right" onClick={() => navigate({ page: 'catalog' })}>Browse Course Catalog</Button>}
         />
       </div>
     );
@@ -165,103 +156,118 @@ export function StudentCoursesPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <PageHeader title="My learning" subtitle={`${rows.length} course${rows.length === 1 ? '' : 's'} you're working through, ${firstName(currentUser.name)}.`} />
+      <PageHeader title="My Learning" subtitle={`${rows.length} course${rows.length === 1 ? '' : 's'} in your personal study track.`} />
 
-      {/* filter tabs */}
+      {/* Filter Tabs */}
       <div className="mb-8 flex flex-wrap gap-2 border-b border-slate-200/80 pb-4">
         <button
           onClick={() => setFilter('all')}
           className={cn(
-            'rounded-xl px-4 py-2 text-sm font-semibold transition',
-            filter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+            'rounded-xl px-4 py-2 text-xs font-bold transition',
+            filter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100',
           )}
         >
-          All courses ({rows.length})
+          All Courses ({rows.length})
         </button>
         <button
           onClick={() => setFilter('in_progress')}
           className={cn(
-            'rounded-xl px-4 py-2 text-sm font-semibold transition',
-            filter === 'in_progress' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+            'rounded-xl px-4 py-2 text-xs font-bold transition',
+            filter === 'in_progress' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100',
           )}
         >
-          In progress ({inProgress.length})
+          In Progress ({inProgress.length})
         </button>
         <button
           onClick={() => setFilter('completed')}
           className={cn(
-            'rounded-xl px-4 py-2 text-sm font-semibold transition',
-            filter === 'completed' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+            'rounded-xl px-4 py-2 text-xs font-bold transition',
+            filter === 'completed' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100',
           )}
         >
           Completed ({completed.length})
         </button>
       </div>
 
-      {displayed.length === 0 ? (
-        <EmptyState
-          icon="book-open"
-          title={filter === 'completed' ? 'No completed courses yet' : 'No courses currently in progress'}
-          description={filter === 'completed' ? 'Finish every chapter of a course to unlock its completion certificate.' : 'All of your courses are currently completed.'}
-          action={<Button variant="secondary" onClick={() => setFilter('all')}>View all courses</Button>}
-        />
-      ) : (
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-          {displayed.map(({ enrolment, course }) => {
-            const { done, total, pct } = progressOf(course, enrolment);
-            const teacher = data.users.find((u) => u.id === course.teacherId);
-            const category = data.categories.find((c) => c.id === course.categoryId);
-            const finished = pct >= 100;
-            return (
-              <div key={enrolment.id} className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
-                <button onClick={() => navigate({ page: 's-learn', courseId: course.id })} className="relative block aspect-[16/9] overflow-hidden bg-slate-900">
-                  {course.coverImage ? (
-                    <img src={course.coverImage} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-700 via-indigo-900 to-slate-950">
-                      <Icon name={category?.icon ?? 'book-open'} className="h-12 w-12 text-white/20" />
-                    </div>
-                  )}
-                  <span className="absolute left-3 top-3"><LevelBadge level={course.level} /></span>
-                  {finished && <span className="absolute right-3 top-3"><Badge tone="emerald" icon="check-circle" className="bg-white/95 shadow">Completed</Badge></span>}
-                </button>
-                <div className="flex flex-1 flex-col p-5">
-                  <h3 className="text-base font-bold leading-snug text-slate-900">{course.title}</h3>
-                  <p className="mt-1.5 flex items-center gap-2 text-sm text-slate-500">
-                    <Avatar name={teacher?.name ?? ''} size="xs" /> {teacher?.name ?? 'Instructor'}
-                  </p>
-                  <div className="mt-4 flex items-center gap-3">
-                    <ProgressBar value={pct} className="flex-1" />
-                    <span className={cn('text-xs font-extrabold', finished ? 'text-emerald-600' : 'text-indigo-600')}>
-                      {done}/{total} · {pct}%
-                    </span>
-                  </div>
-                  <div className="mt-5 flex gap-2.5">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {displayed.map(({ enrolment, course }) => {
+          const { done, total, pct } = progressOf(course, enrolment);
+          const teacher = data.users.find((u) => u.id === course.teacherId);
+          const finished = pct >= 100;
+          return (
+            <div key={enrolment.id} className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/5 transition hover:-translate-y-1 hover:shadow-lift">
+              <button onClick={() => navigate({ page: 's-learn', courseId: course.id })} className="relative block aspect-video overflow-hidden bg-slate-900">
+                <img src={course.coverImage} alt="" className="h-full w-full object-cover" />
+                <span className="absolute left-3 top-3"><LevelBadge level={course.level} /></span>
+                {finished && <span className="absolute right-3 top-3"><Badge tone="emerald" icon="check-circle" className="bg-white/95 shadow">Completed</Badge></span>}
+              </button>
+              <div className="flex flex-1 flex-col p-5">
+                <h3 className="text-base font-bold text-slate-900 leading-snug">{course.title}</h3>
+                <p className="mt-1.5 flex items-center gap-2 text-xs text-slate-500">
+                  <Avatar name={teacher?.name ?? ''} size="xs" /> {teacher?.name ?? 'Instructor'}
+                </p>
+                <div className="mt-4 flex items-center gap-3">
+                  <ProgressBar value={pct} className="flex-1" />
+                  <span className={cn('text-xs font-bold', finished ? 'text-emerald-600' : 'text-indigo-600')}>
+                    {done}/{total} &middot; {pct}%
+                  </span>
+                </div>
+                <div className="mt-5 flex gap-2">
+                  <Button
+                    className={cn('flex-1', finished && 'bg-emerald-600 hover:bg-emerald-700')}
+                    icon={finished ? 'eye' : 'play'}
+                    onClick={() => navigate({ page: 's-learn', courseId: course.id, chapterId: finished ? undefined : nextChapter(course, enrolment) })}
+                  >
+                    {finished ? 'Review' : 'Continue'}
+                  </Button>
+                  {finished && (
                     <Button
-                      className={cn('flex-1', finished && 'bg-emerald-600 shadow-emerald-600/25 hover:bg-emerald-700')}
-                      icon={finished ? 'eye' : 'play'}
-                      onClick={() => navigate({ page: 's-learn', courseId: course.id, chapterId: finished ? undefined : nextChapter(course, enrolment) })}
+                      variant="secondary"
+                      icon="award"
+                      onClick={() => {
+                        issueCertificate(course.id);
+                        toast('Certificate ready!');
+                        navigate({ page: 's-certs' });
+                      }}
                     >
-                      {finished ? 'Review course' : 'Continue'}
+                      Certificate
                     </Button>
-                    {finished && (
-                      <Button
-                        variant="secondary"
-                        icon="award"
-                        onClick={() => {
-                          const cert = issueCertificate(course.id);
-                          if (cert) toast('Certificate ready — congratulations again!');
-                          navigate({ page: 's-certs' });
-                        }}
-                      >
-                        Certificate
-                      </Button>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// WISHLIST PAGE
+// ─────────────────────────────────────────────────────────────
+export function StudentWishlistPage() {
+  const { data, currentUser, navigate } = useApp();
+  const wishItems = data.wishlist.filter((w) => w.userId === currentUser.id);
+  const courses = wishItems
+    .map((w) => data.courses.find((c) => c.id === w.courseId))
+    .filter((c): c is Course => Boolean(c));
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <PageHeader title="Saved Wishlist" subtitle="Courses you've bookmarked to learn later." />
+      {courses.length === 0 ? (
+        <EmptyState
+          icon="bookmark"
+          title="Your wishlist is empty"
+          description="Bookmark interesting courses while browsing the catalog to build your study queue."
+          action={<Button onClick={() => navigate({ page: 'catalog' })}>Explore Courses</Button>}
+        />
+      ) : (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {courses.map((c) => (
+            <CourseCard key={c.id} course={c} />
+          ))}
         </div>
       )}
     </div>
@@ -269,13 +275,33 @@ export function StudentCoursesPage() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// LEARNING PAGE — the heart of the app
+// LEARNING PAGE — Complete Interactive Learning Hub
 // ─────────────────────────────────────────────────────────────
 export function LearningPage({ courseId, chapterId }: { courseId: string; chapterId?: string }) {
   const app = useApp();
-  const { data, navigate, currentUser, completeChapter, touchCourse, certificateFor, issueCertificate, toast, enrol } = app;
+  const {
+    data,
+    navigate,
+    currentUser,
+    completeChapter,
+    touchCourse,
+    certificateFor,
+    issueCertificate,
+    saveQuizScore,
+    saveStudentNote,
+    noteFor,
+    discussionsFor,
+    addDiscussionQuestion,
+    addDiscussionReply,
+    toast,
+    enrol,
+  } = app;
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [congratsOpen, setCongratsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'notes' | 'quiz' | 'resources' | 'discussion' | 'mynotes'>('notes');
+  const [newQuestionText, setNewQuestionText] = useState('');
+  const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
 
   const course = data.courses.find((c) => c.id === courseId);
   const enrolment = data.enrolments.find((e) => e.courseId === courseId && e.studentId === currentUser.id);
@@ -294,7 +320,7 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
   if (!course) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20">
-        <EmptyState icon="alert" title="Course not found" description="It may have been removed, or the demo data was reset." action={<Button onClick={() => navigate({ page: 's-courses' })}>Back to my courses</Button>} />
+        <EmptyState icon="alert" title="Course not found" description="It may have been removed." action={<Button onClick={() => navigate({ page: 's-courses' })}>Back to Courses</Button>} />
       </div>
     );
   }
@@ -304,21 +330,18 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
       <div className="mx-auto max-w-xl px-4 py-20">
         <EmptyState
           icon="lock"
-          title="You're not enrolled yet"
-          description="Enrol for free to start this course — your chapter progress will be tracked here."
+          title="Enrolment Required"
+          description="Enrol in this course for free to track your chapter progress, save personal notes, and earn a verified certificate."
           action={
-            <div className="flex flex-wrap justify-center gap-3">
-              <Button
-                iconRight="arrow-right"
-                onClick={() => {
-                  enrol(course.id);
-                  toast(`Enrolled in “${course.title}” — welcome aboard!`);
-                }}
-              >
-                Enrol for free
-              </Button>
-              <Button variant="secondary" onClick={() => navigate({ page: 'course', id: course.id })}>Course details</Button>
-            </div>
+            <Button
+              iconRight="arrow-right"
+              onClick={() => {
+                enrol(course.id);
+                toast(`Enrolled in “${course.title}”!`);
+              }}
+            >
+              Enrol for Free
+            </Button>
           }
         />
       </div>
@@ -334,6 +357,9 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
   const next = activeIdx < chapters.length - 1 ? chapters[activeIdx + 1] : undefined;
   const isDone = chapter ? doneSet.has(chapter.id) : false;
 
+  const userNote = chapter ? noteFor(course.id, chapter.id) : undefined;
+  const discussions = chapter ? discussionsFor(course.id, chapter.id) : [];
+
   const goTo = (id: string) => {
     navigate({ page: 's-learn', courseId: course.id, chapterId: id });
     setSidebarOpen(false);
@@ -345,26 +371,43 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
     const willBeComplete = chapters.every((c) => c.id === chapter.id || doneSet.has(c.id));
     if (willBeComplete) {
       if (!certificateFor(course.id)) {
+        issueCertificate(course.id);
         setCongratsOpen(true);
       } else {
-        toast('Course complete — nice work reviewing!');
+        toast('Course 100% completed!');
       }
       return;
     }
-    toast(`“${chapter.title}” marked complete`);
+    toast(`“${chapter.title}” completed!`);
     if (next) goTo(next.id);
   };
 
-  const sidebar = (
+  const handlePostQuestion = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chapter || !newQuestionText.trim()) return;
+    addDiscussionQuestion(course.id, chapter.id, newQuestionText.trim());
+    setNewQuestionText('');
+    toast('Question posted to chapter forum');
+  };
+
+  const handlePostReply = (qId: string) => {
+    const text = replyTextMap[qId];
+    if (!text || !text.trim()) return;
+    addDiscussionReply(qId, text.trim());
+    setReplyTextMap((prev) => ({ ...prev, [qId]: '' }));
+    toast('Reply posted');
+  };
+
+  const sidebarContent = (
     <div className="flex h-full flex-col">
       <div className="border-b border-slate-100 p-5">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Course progress</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Course Progress</p>
         <p className="mt-2 text-sm font-bold text-slate-900">
-          {done} of {total} complete <span className={cn('ml-1', pct >= 100 ? 'text-emerald-600' : 'text-indigo-600')}>({pct}%)</span>
+          {done} of {total} completed <span className={cn('ml-1', pct >= 100 ? 'text-emerald-600' : 'text-indigo-600')}>({pct}%)</span>
         </p>
         <ProgressBar value={pct} className="mt-3" />
       </div>
-      <ol className="flex-1 overflow-y-auto p-3">
+      <ol className="flex-1 overflow-y-auto p-3 space-y-1.5">
         {chapters.map((c, i) => {
           const active = c.id === chapter?.id;
           const complete = doneSet.has(c.id);
@@ -372,7 +415,6 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
             <li key={c.id}>
               <button
                 onClick={() => goTo(c.id)}
-                aria-current={active ? 'step' : undefined}
                 className={cn(
                   'group flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition',
                   active ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-slate-50',
@@ -381,20 +423,21 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
                 <span
                   className={cn(
                     'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
-                    complete ? 'bg-emerald-500 text-white' : active ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200',
+                    complete ? 'bg-emerald-500 text-white' : active ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500',
                   )}
                 >
-                  {complete ? <Icon name="check" className="h-3.5 w-3.5" strokeWidth={3} /> : i + 1}
+                  {complete ? <Icon name="check" className="h-3.5 w-3.5" strokeWidth={2.6} /> : i + 1}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className={cn('block truncate text-sm font-semibold', active ? 'text-indigo-900' : complete ? 'text-slate-500' : 'text-slate-800')}>
+                <div className="min-w-0 flex-1">
+                  <p className={cn('truncate text-xs font-bold', active ? 'text-indigo-900' : complete ? 'text-slate-500' : 'text-slate-800')}>
                     {c.title}
-                  </span>
-                  <span className="mt-0.5 flex items-center gap-2 text-[11px] font-medium text-slate-400">
-                    <Icon name="clock" className="h-3 w-3" /> {c.durationMin} min
-                    {c.freePreview && <span className="text-sky-500">preview</span>}
-                  </span>
-                </span>
+                  </p>
+                  <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                    <span>{c.durationMin} min</span>
+                    {c.quiz && <span className="text-violet-500">&middot; Quiz</span>}
+                    {c.freePreview && <span className="text-sky-500">&middot; Preview</span>}
+                  </div>
+                </div>
               </button>
             </li>
           );
@@ -402,7 +445,7 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
       </ol>
       <div className="border-t border-slate-100 p-4">
         <Button variant="secondary" size="sm" className="w-full" icon="arrow-left" onClick={() => navigate({ page: 's-courses' })}>
-          My courses
+          Back to My Courses
         </Button>
       </div>
     </div>
@@ -410,15 +453,15 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-10">
-      {/* top bar */}
+      {/* Top Breadcrumb */}
       <div className="mb-5 flex items-center justify-between gap-3">
-        <button onClick={() => navigate({ page: 'course', id: course.id })} className="inline-flex min-w-0 items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-indigo-600">
+        <button onClick={() => navigate({ page: 'course', id: course.id })} className="inline-flex min-w-0 items-center gap-1.5 text-xs font-semibold text-slate-500 transition hover:text-indigo-600">
           <Icon name="chevron-left" className="h-4 w-4 shrink-0" />
           <span className="truncate">{course.title}</span>
         </button>
         <div className="flex items-center gap-2">
-          <Badge tone={pct >= 100 ? 'emerald' : 'indigo'} icon={pct >= 100 ? 'check-circle' : 'layers'} className="hidden sm:inline-flex">
-            {done}/{total} · {pct}%
+          <Badge tone={pct >= 100 ? 'emerald' : 'indigo'} icon={pct >= 100 ? 'check-circle' : 'layers'}>
+            {done}/{total} Chapters ({pct}%)
           </Badge>
           <Button variant="secondary" size="sm" icon="menu" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
             Chapters
@@ -426,149 +469,296 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
         </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[300px_minmax(0,1fr)]">
-        {/* desktop sidebar */}
-        <aside className="hidden overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/5 lg:block lg:self-start" style={{ maxHeight: 'calc(100vh - 140px)', position: 'sticky', top: 96 }}>
-          {sidebar}
+      <div className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)]">
+        {/* Desktop Sticky Sidebar */}
+        <aside className="hidden overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/5 lg:block lg:self-start lg:sticky lg:top-24 max-h-[calc(100vh-120px)]">
+          {sidebarContent}
         </aside>
 
-        {/* mobile slide-out */}
+        {/* Mobile Slide-Out Chapters */}
         {sidebarOpen && (
-          <div className="fixed inset-0 z-[70] lg:hidden" role="dialog" aria-label="Chapter list">
-            <button aria-label="Close chapters" onClick={() => setSidebarOpen(false)} className="absolute inset-0 bg-slate-950/50 backdrop-blur-[2px] animate-fade-in" />
+          <div className="fixed inset-0 z-[70] lg:hidden" role="dialog">
+            <button aria-label="Close" onClick={() => setSidebarOpen(false)} className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" />
             <div className="absolute inset-y-0 left-0 w-[86vw] max-w-xs bg-white shadow-2xl animate-slide-in-left">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                <p className="text-sm font-extrabold text-slate-900">Chapters</p>
-                <button onClick={() => setSidebarOpen(false)} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100" aria-label="Close">
+                <p className="text-sm font-extrabold text-slate-900">Curriculum</p>
+                <button onClick={() => setSidebarOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100">
                   <Icon name="x" className="h-5 w-5" />
                 </button>
               </div>
-              <div className="h-[calc(100%-57px)]">{sidebar}</div>
+              <div className="h-[calc(100%-57px)]">{sidebarContent}</div>
             </div>
           </div>
         )}
 
-        {/* main content */}
+        {/* Main Learning Hub */}
         <div className="min-w-0">
           {chapter ? (
             <>
-              {/* video placeholder */}
-              <button
-                onClick={() => toast('Video playback is mocked in this demo — imagine an inspiring lesson here', 'info')}
-                className="group relative block aspect-video w-full overflow-hidden rounded-3xl bg-slate-900 text-left shadow-lift focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-300"
-              >
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_28%_25%,rgba(99,102,241,0.45),transparent_55%),radial-gradient(circle_at_75%_80%,rgba(139,92,246,0.35),transparent_50%)]" />
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 text-indigo-600 shadow-2xl transition-transform duration-300 group-hover:scale-110 sm:h-20 sm:w-20">
-                    <Icon name="play" className="h-7 w-7 translate-x-0.5 sm:h-8 sm:w-8" />
-                  </span>
-                  <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                    Lesson {activeIdx + 1} of {total}
-                  </span>
-                </div>
-                {/* fake scrubber */}
-                <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[11px] font-bold text-slate-300">0:00</span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/15">
-                      <div className="h-full w-[8%] rounded-full bg-indigo-400" />
-                    </div>
-                    <span className="text-[11px] font-bold text-slate-300">{chapter.durationMin}:00</span>
-                  </div>
-                </div>
-                <span className="absolute left-4 top-4 rounded-full bg-black/45 px-3 py-1 text-xs font-bold text-white backdrop-blur">
-                  {isDone ? 'Re-watching' : 'Now playing'}
-                </span>
-                {chapter.freePreview && <span className="absolute right-4 top-4"><Badge tone="sky" className="shadow">Free preview</Badge></span>}
-              </button>
+              {/* Real Video Player Component */}
+              <VideoPlayer
+                videoUrl={chapter.videoUrl}
+                title={chapter.title}
+                durationMin={chapter.durationMin}
+                isComplete={isDone}
+                onComplete={handleComplete}
+              />
 
-              {/* chapter header */}
-              <div className="mt-7 flex flex-wrap items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-slate-400">
-                    Chapter {activeIdx + 1} · {chapter.durationMin} min
+              {/* Chapter Header */}
+              <div className="mt-6 flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Chapter {activeIdx + 1} of {total} &middot; {chapter.durationMin} min
                   </p>
-                  <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">{chapter.title}</h1>
+                  <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+                    {chapter.title}
+                  </h1>
                 </div>
-                {isDone && <Badge tone="emerald" icon="check-circle" className="mt-1 shrink-0">Completed</Badge>}
-              </div>
-              <p className="mt-3 max-w-2xl text-base leading-relaxed text-slate-600">{chapter.description}</p>
-
-              {/* actions */}
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                 {isDone ? (
-                  <div className="inline-flex items-center gap-2.5 rounded-xl bg-emerald-50 px-5 py-3 text-sm font-bold text-emerald-700 ring-1 ring-emerald-200">
-                    <Icon name="check-circle" className="h-5 w-5" />
-                    Chapter complete
-                  </div>
+                  <Badge tone="emerald" icon="check-circle">Completed</Badge>
                 ) : (
-                  <Button size="lg" icon="check" onClick={handleComplete}>
-                    Mark as complete
+                  <Button icon="check" onClick={handleComplete}>
+                    Mark as Complete
                   </Button>
                 )}
-                <div className="flex gap-3 sm:ml-auto">
-                  <Button variant="secondary" icon="arrow-left" disabled={!prev} onClick={() => prev && goTo(prev.id)}>
-                    <span className="hidden sm:inline">Previous</span><span className="sm:hidden">Prev</span>
-                  </Button>
-                  {isDone && next ? (
-                    <Button iconRight="arrow-right" onClick={() => goTo(next.id)}>Next chapter</Button>
-                  ) : (
-                    <Button variant="secondary" iconRight="arrow-right" disabled={!next} onClick={() => next && goTo(next.id)}>Next</Button>
-                  )}
+              </div>
+
+              {/* Interactive Tabs */}
+              <div className="mt-8 border-b border-slate-200">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { key: 'notes', label: 'Lecture Notes', icon: 'file-text' as const },
+                    { key: 'quiz', label: `Quiz ${chapter.quiz ? `(${chapter.quiz.questions.length})` : ''}`, icon: 'check-square' as const },
+                    { key: 'resources', label: `Resources ${chapter.resources?.length ? `(${chapter.resources.length})` : ''}`, icon: 'download' as const },
+                    { key: 'mynotes', label: 'My Notes', icon: 'pencil' as const },
+                    { key: 'discussion', label: `Q&A (${discussions.length})`, icon: 'message-square' as const },
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key as any)}
+                      className={cn(
+                        'flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition-all',
+                        activeTab === tab.key
+                          ? 'border-indigo-600 text-indigo-700'
+                          : 'border-transparent text-slate-500 hover:text-slate-900',
+                      )}
+                    >
+                      <Icon name={tab.icon} className="h-4 w-4" />
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {pct >= 100 && (
-                <div className="mt-8 flex flex-col items-start gap-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 p-6 text-white sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="flex items-center gap-2 text-lg font-extrabold"><Icon name="award" className="h-5.5 w-5.5" /> Course complete!</p>
-                    <p className="mt-1 text-sm text-emerald-50">You finished every chapter of “{course.title}”.</p>
+              {/* Tab Content Panel */}
+              <div className="mt-6">
+                {activeTab === 'notes' && (
+                  <div className="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-900/5">
+                    <h3 className="text-base font-bold text-slate-900">Lecture Overview &amp; Material</h3>
+                    <p className="mt-2 text-sm text-slate-600 leading-relaxed">{chapter.description}</p>
+                    <div className="mt-6 border-t border-slate-100 pt-6">
+                      <MarkdownViewer
+                        content={
+                          chapter.content ||
+                          `## Core Concepts & Key Takeaways\n\n- Master the fundamentals covered in **${chapter.title}**.\n- Apply the practical patterns to your own codebase.\n- Complete the chapter knowledge check quiz once finished with the lesson video.`
+                        }
+                      />
+                    </div>
                   </div>
-                  <Button
-                    className="bg-white text-emerald-700 shadow-lg hover:bg-emerald-50"
-                    icon="certificate"
-                    onClick={() => {
-                      issueCertificate(course.id);
-                      navigate({ page: 's-certs' });
+                )}
+
+                {activeTab === 'quiz' && (
+                  <div>
+                    {chapter.quiz ? (
+                      <QuizWidget
+                        quiz={chapter.quiz}
+                        previousScore={enrolment.quizScores?.[chapter.id]}
+                        onPass={(score, totalQ) => {
+                          saveQuizScore(course.id, chapter.id, score, totalQ);
+                          toast(`Quiz passed with ${score}/${totalQ} correct! Great job!`);
+                          if (!isDone) handleComplete();
+                        }}
+                      />
+                    ) : (
+                      <EmptyState
+                        icon="check-square"
+                        title="No quiz for this chapter"
+                        description="This chapter is a foundational lecture without a graded test. You can mark it complete directly."
+                      />
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'resources' && (
+                  <div className="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-900/5">
+                    <h3 className="text-base font-bold text-slate-900">Downloadable Lesson Materials</h3>
+                    {chapter.resources && chapter.resources.length > 0 ? (
+                      <ul className="mt-4 divide-y divide-slate-100">
+                        {chapter.resources.map((res) => (
+                          <li key={res.id} className="flex items-center justify-between py-3">
+                            <div className="flex items-center gap-3">
+                              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                                <Icon name={res.type === 'pdf' ? 'file-text' : res.type === 'code' ? 'code' : 'external-link'} className="h-4.5 w-4.5" />
+                              </span>
+                              <div>
+                                <p className="text-xs font-bold text-slate-900">{res.name}</p>
+                                {res.fileSize && <p className="text-[10px] text-slate-400">{res.fileSize}</p>}
+                              </div>
+                            </div>
+                            <a
+                              href={res.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                            >
+                              <Icon name="download" className="h-3.5 w-3.5" /> Open / Download
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-4 text-xs text-slate-400">All reference material is included directly in the lecture notes tab.</p>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'mynotes' && (
+                  <NotesPad
+                    chapterTitle={chapter.title}
+                    initialContent={userNote?.content ?? ''}
+                    onSave={(text) => {
+                      saveStudentNote(course.id, chapter.id, text);
+                      toast('Personal notes saved!');
                     }}
-                  >
-                    View my certificate
+                  />
+                )}
+
+                {activeTab === 'discussion' && (
+                  <div className="space-y-6">
+                    {/* Ask question form */}
+                    <form onSubmit={handlePostQuestion} className="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-900/5">
+                      <h3 className="text-sm font-bold text-slate-900">Ask a question about this chapter</h3>
+                      <div className="mt-3">
+                        <textarea
+                          value={newQuestionText}
+                          onChange={(e) => setNewQuestionText(e.target.value)}
+                          placeholder="Stuck on a concept or code snippet? Ask your fellow learners and instructor..."
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs sm:text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          rows={3}
+                          required
+                        />
+                      </div>
+                      <div className="mt-3 flex justify-end">
+                        <Button size="sm" icon="message-square" type="submit">Post Question</Button>
+                      </div>
+                    </form>
+
+                    {/* Discussions List */}
+                    <div className="space-y-4">
+                      {discussions.length === 0 ? (
+                        <EmptyState
+                          icon="message-square"
+                          title="No questions yet"
+                          description="Be the first to ask a question or start a discussion on this lesson."
+                        />
+                      ) : (
+                        discussions.map((disc) => (
+                          <div key={disc.id} className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-900/5 space-y-4">
+                            <div className="flex items-center gap-3">
+                              <Avatar name={disc.userName} size="xs" />
+                              <div>
+                                <p className="text-xs font-bold text-slate-900">{disc.userName}</p>
+                                <p className="text-[10px] text-slate-400">{timeAgo(disc.createdAt)}</p>
+                              </div>
+                              <Badge tone={disc.userRole === 'teacher' ? 'indigo' : 'slate'} className="ml-auto text-[9px]">
+                                {disc.userRole}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-slate-700 leading-relaxed font-medium">{disc.text}</p>
+
+                            {/* Replies */}
+                            {disc.replies.length > 0 && (
+                              <div className="border-l-2 border-indigo-200 pl-4 space-y-3">
+                                {disc.replies.map((rep) => (
+                                  <div key={rep.id} className="rounded-xl bg-slate-50 p-3 text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <Avatar name={rep.userName} size="xs" />
+                                      <span className="font-bold text-slate-800">{rep.userName}</span>
+                                      <Badge tone={rep.userRole === 'teacher' ? 'indigo' : 'slate'} className="text-[9px]">
+                                        {rep.userRole}
+                                      </Badge>
+                                      <span className="text-[10px] text-slate-400 ml-auto">{timeAgo(rep.createdAt)}</span>
+                                    </div>
+                                    <p className="mt-1.5 text-slate-600 leading-relaxed">{rep.text}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Reply Input */}
+                            <div className="flex gap-2 pt-2">
+                              <input
+                                type="text"
+                                value={replyTextMap[disc.id] ?? ''}
+                                onChange={(e) => setReplyTextMap((prev) => ({ ...prev, [disc.id]: e.target.value }))}
+                                placeholder="Reply to this question..."
+                                className="flex-1 rounded-xl bg-slate-50 px-3 py-1.5 text-xs ring-1 ring-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              />
+                              <Button size="sm" variant="secondary" onClick={() => handlePostReply(disc.id)}>
+                                Reply
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom Nav Actions */}
+              <div className="mt-10 flex items-center justify-between border-t border-slate-200 pt-6">
+                <Button variant="secondary" icon="arrow-left" disabled={!prev} onClick={() => prev && goTo(prev.id)}>
+                  Previous Chapter
+                </Button>
+                {next && (
+                  <Button iconRight="arrow-right" onClick={() => goTo(next.id)}>
+                    Next Chapter
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </>
           ) : (
-            <EmptyState icon="layers" title="No chapters yet" description="The teacher is still drafting this course — check back soon." />
+            <EmptyState icon="layers" title="No chapter selected" description="Choose a chapter from the sidebar." />
           )}
         </div>
       </div>
 
-      {/* congratulations dialog */}
+      {/* Completion Celebration Modal */}
       <Modal open={congratsOpen} onClose={() => setCongratsOpen(false)}>
-        <div className="relative overflow-hidden p-8 text-center sm:p-10">
-          <Confetti />
-          <span className="relative mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-500 text-white shadow-xl shadow-amber-500/30">
+        <div className="p-8 text-center sm:p-10">
+          <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-500 text-white shadow-xl shadow-amber-500/30">
             <Icon name="award" className="h-10 w-10" />
           </span>
-          <h2 className="relative mt-6 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Congratulations, {firstName(currentUser.name)}!</h2>
-          <p className="relative mx-auto mt-3 max-w-sm text-sm leading-relaxed text-slate-500">
-            You completed every chapter of <span className="font-bold text-slate-800">“{course.title}”</span>. Your certificate of completion is ready.
+          <h2 className="mt-6 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+            Congratulations, {firstName(currentUser.name)}!
+          </h2>
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-slate-500">
+            You successfully completed all chapters of <span className="font-bold text-slate-800">“{course.title}”</span>. Your verifiable certificate is ready.
           </p>
-          <div className="relative mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Button
               size="lg"
               icon="certificate"
               onClick={() => {
-                issueCertificate(course.id);
-                toast('Certificate issued — it’s saved on your Certificates page');
                 setCongratsOpen(false);
                 navigate({ page: 's-certs' });
               }}
             >
-              Get my certificate
+              View My Certificate
             </Button>
             <Button size="lg" variant="ghost" onClick={() => setCongratsOpen(false)}>
-              Maybe later
+              Continue Reviewing
             </Button>
           </div>
         </div>
@@ -577,34 +767,8 @@ export function LearningPage({ courseId, chapterId }: { courseId: string; chapte
   );
 }
 
-function Confetti() {
-  const pieces = useMemo(
-    () =>
-      Array.from({ length: 26 }, (_, i) => ({
-        left: (i * 37 + 13) % 100,
-        delay: (i % 9) * 0.14,
-        duration: 2.4 + (i % 5) * 0.35,
-        color: ['bg-indigo-500', 'bg-violet-500', 'bg-amber-400', 'bg-emerald-500', 'bg-rose-400', 'bg-sky-400'][i % 6],
-        rotate: (i * 53) % 360,
-        size: 6 + (i % 3) * 3,
-      })),
-    [],
-  );
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      {pieces.map((p, i) => (
-        <span
-          key={i}
-          className={cn('absolute top-[-12px] rounded-[2px] animate-confetti', p.color)}
-          style={{ left: `${p.left}%`, width: p.size, height: p.size * 0.6, animationDelay: `${p.delay}s`, animationDuration: `${p.duration}s`, transform: `rotate(${p.rotate}deg)` }}
-        />
-      ))}
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────
-// CERTIFICATES
+// CERTIFICATES PAGE
 // ─────────────────────────────────────────────────────────────
 export function CertificatesPage() {
   const { data, currentUser, navigate } = useApp();
@@ -615,20 +779,26 @@ export function CertificatesPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <PageHeader
-        title="My certificates"
-        subtitle="Earned by completing every chapter of a course. Each carries a unique verification code."
+        title="My Earned Certificates"
+        subtitle="Cryptographically verified certificates of completion awarded for completing 100% of a course."
       />
       {mine.length === 0 ? (
         <EmptyState
           icon="award"
-          title="No certificates yet"
-          description="Finish every chapter of a course and your certificate will appear here — elegant, shareable and verifiable."
-          action={<Button iconRight="arrow-right" onClick={() => navigate({ page: 's-courses' })}>Continue learning</Button>}
+          title="No certificates earned yet"
+          description="Finish every chapter and quiz in any enrolled course to unlock your shareable, verifiable certificate."
+          action={<Button iconRight="arrow-right" onClick={() => navigate({ page: 's-courses' })}>Continue Learning</Button>}
         />
       ) : (
-        <div className="space-y-10">
+        <div className="space-y-12">
           {mine.map((cert) => (
-            <CertificateView key={cert.id} cert={cert} course={data.courses.find((c) => c.id === cert.courseId)} studentName={currentUser.name} teacherName={data.users.find((u) => u.id === data.courses.find((c) => c.id === cert.courseId)?.teacherId)?.name ?? 'EduFlow Teacher'} />
+            <CertificateView
+              key={cert.id}
+              cert={cert}
+              course={data.courses.find((c) => c.id === cert.courseId)}
+              studentName={currentUser.name}
+              teacherName={data.users.find((u) => u.id === data.courses.find((c) => c.id === cert.courseId)?.teacherId)?.name ?? 'EduFlow Instructor'}
+            />
           ))}
         </div>
       )}
@@ -641,87 +811,150 @@ export function CertificateView({ cert, course, studentName, teacherName }: { ce
   return (
     <div>
       <div className="relative mx-auto aspect-[1.414/1] w-full max-w-3xl overflow-hidden rounded-xl bg-[#FDFBF5] text-slate-900 shadow-lift ring-1 ring-amber-900/10 print:shadow-none">
-        {/* decorative double border */}
-        <div className="pointer-events-none absolute inset-2.5 rounded-lg border-2 border-[#C9A86A]" />
-        <div className="pointer-events-none absolute inset-4 rounded-md border border-[#C9A86A]/50" />
-        {/* corner flourishes */}
-        {['left-2.5 top-2.5 border-l-[3px] border-t-[3px] rounded-tl-lg', 'right-2.5 top-2.5 border-r-[3px] border-t-[3px] rounded-tr-lg', 'bottom-2.5 left-2.5 border-b-[3px] border-l-[3px] rounded-bl-lg', 'bottom-2.5 right-2.5 border-b-[3px] border-r-[3px] rounded-br-lg'].map((pos) => (
-          <span key={pos} className={cn('pointer-events-none absolute h-7 w-7 border-[#B08D4C]', pos)} />
-        ))}
+        {/* Decorative Gold Borders */}
+        <div className="pointer-events-none absolute inset-3 rounded-lg border-2 border-[#C9A86A]" />
+        <div className="pointer-events-none absolute inset-5 rounded-md border border-[#C9A86A]/50" />
 
         <div className="relative flex h-full flex-col items-center justify-between px-[7%] py-[5.5%] text-center">
           <div>
             <div className="flex items-center justify-center gap-2">
-              <span className="flex h-[7%] w-auto items-center justify-center text-[#B08D4C]">
-                <Icon name="logo" className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2} />
+              <span className="text-[#B08D4C]">
+                <Icon name="logo" className="h-7 w-7" strokeWidth={2} />
               </span>
-              <span className="text-base font-extrabold tracking-tight text-slate-900 sm:text-lg">
+              <span className="text-lg font-black tracking-tight text-slate-900">
                 Edu<span className="text-[#B08D4C]">Flow</span>
               </span>
             </div>
-            <p className="mt-[3%] text-[0.55rem] font-bold uppercase tracking-[0.35em] text-[#B08D4C] sm:text-xs">Certificate of Completion</p>
-            <div className="mx-auto mt-2 flex w-24 items-center gap-1.5 sm:w-32">
-              <span className="h-px flex-1 bg-[#C9A86A]/60" />
-              <span className="h-1.5 w-1.5 rotate-45 bg-[#C9A86A]" />
-              <span className="h-px flex-1 bg-[#C9A86A]/60" />
-            </div>
+            <p className="mt-[2%] text-[0.65rem] font-bold uppercase tracking-[0.35em] text-[#B08D4C]">Certificate of Mastery &amp; Completion</p>
           </div>
 
           <div>
-            <p className="text-[0.6rem] italic text-slate-500 sm:text-xs">This certifies that</p>
-            <p className="mt-[1.5%] font-serif text-2xl font-bold leading-tight text-slate-900 sm:text-4xl lg:text-[2.6rem]">{studentName}</p>
-            <p className="mx-auto mt-[1.5%] max-w-md text-[0.6rem] leading-relaxed text-slate-500 sm:text-xs">
-              has successfully completed all {course?.chapters.length ?? ''} chapters of
+            <p className="text-[0.65rem] italic text-slate-500">This official certificate is proudly presented to</p>
+            <p className="mt-1 font-serif text-3xl font-bold leading-tight text-slate-900 sm:text-4xl lg:text-[2.6rem]">{studentName}</p>
+            <p className="mx-auto mt-2 max-w-md text-[0.65rem] leading-relaxed text-slate-500">
+              for successfully completing all curriculum requirements, lessons, and quizzes of
             </p>
-            <p className="mt-[1%] px-4 text-sm font-extrabold text-indigo-700 sm:text-lg">“{course?.title ?? 'an EduFlow course'}”</p>
+            <p className="mt-1 px-4 text-base font-extrabold text-indigo-800 sm:text-xl">“{course?.title ?? 'EduFlow Masterclass'}”</p>
           </div>
 
           <div className="flex w-full items-end justify-between text-left">
             <div>
-              <p className="text-[0.5rem] font-bold uppercase tracking-widest text-slate-400 sm:text-[0.6rem]">Awarded on</p>
-              <p className="mt-0.5 text-[0.6rem] font-bold text-slate-900 sm:text-xs">{fmtDate(cert.issuedAt)}</p>
+              <p className="text-[0.55rem] font-bold uppercase tracking-widest text-slate-400">Issued On</p>
+              <p className="mt-0.5 text-xs font-bold text-slate-900">{fmtDate(cert.issuedAt)}</p>
             </div>
             <div className="text-center">
-              <p className="font-serif text-sm italic text-slate-800 sm:text-lg">{teacherName}</p>
-              <div className="mx-auto mt-0.5 h-px w-24 bg-slate-300 sm:w-32" />
-              <p className="mt-0.5 text-[0.5rem] font-bold uppercase tracking-widest text-slate-400 sm:text-[0.6rem]">Instructor</p>
+              <p className="font-serif text-base italic text-slate-800">{teacherName}</p>
+              <div className="mx-auto mt-0.5 h-px w-28 bg-slate-300" />
+              <p className="mt-0.5 text-[0.55rem] font-bold uppercase tracking-widest text-slate-400">Authorized Instructor</p>
             </div>
             <div className="text-right">
-              <p className="text-[0.5rem] font-bold uppercase tracking-widest text-slate-400 sm:text-[0.6rem]">Verify at</p>
-              <p className="mt-0.5 text-[0.6rem] font-bold text-slate-900 sm:text-xs">eduflow.io/v/{cert.code}</p>
-            </div>
-          </div>
-
-          {/* gold seal */}
-          <div className="absolute bottom-[16%] right-[7%] hidden sm:block">
-            <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#E3C988] via-[#C9A86A] to-[#A9863F] shadow-lg ring-2 ring-[#E3C988]/60 lg:h-20 lg:w-20">
-              <div className="absolute inset-1.5 rounded-full border border-dashed border-white/50" />
-              <Icon name="award" className="h-7 w-7 text-white drop-shadow sm:h-8 sm:w-8" />
+              <p className="text-[0.55rem] font-bold uppercase tracking-widest text-slate-400">Verification Code</p>
+              <p className="mt-0.5 font-mono text-xs font-bold text-indigo-700">{cert.code}</p>
             </div>
           </div>
         </div>
       </div>
 
       <div className="mx-auto mt-4 flex max-w-3xl flex-wrap items-center justify-between gap-3" data-no-print>
-        <p className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400">
-          <Icon name="shield" className="h-4 w-4 text-emerald-500" /> Verification code <span className="font-mono text-slate-600">{cert.code}</span>
+        <p className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500">
+          <Icon name="shield" className="h-4 w-4 text-emerald-500" /> Verification Key: <span className="font-mono font-bold text-slate-800">{cert.code}</span>
         </p>
         <div className="flex gap-2.5">
           <Button
             variant="secondary"
             size="sm"
-            icon="check"
+            icon="copy"
             onClick={() => {
-              navigator.clipboard?.writeText(`https://eduflow.io/verify/${cert.code}`).catch(() => undefined);
-              toast('Verification link copied to clipboard');
+              navigator.clipboard?.writeText(cert.code).catch(() => undefined);
+              toast(`Verification code ${cert.code} copied!`);
             }}
           >
-            Copy verify link
+            Copy Code
           </Button>
           <Button variant="secondary" size="sm" icon="printer" onClick={() => window.print()}>
-            Print / save PDF
+            Print / Download PDF
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// CERTIFICATE VERIFICATION PORTAL
+// ─────────────────────────────────────────────────────────────
+export function CertificateVerifyPage({ initialCode }: { initialCode?: string }) {
+  const { data } = useApp();
+  const [code, setCode] = useState(initialCode ?? '');
+  const [searched, setSearched] = useState(Boolean(initialCode));
+
+  const cert = useMemo(() => {
+    if (!code.trim()) return null;
+    return data.certificates.find((c) => c.code.toLowerCase() === code.trim().toLowerCase());
+  }, [data.certificates, code]);
+
+  const course = cert ? data.courses.find((c) => c.id === cert.courseId) : null;
+  const student = cert ? data.users.find((u) => u.id === cert.studentId) : null;
+  const teacher = course ? data.users.find((u) => u.id === course.teacherId) : null;
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      <div className="text-center">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+          <Icon name="shield" className="h-7 w-7" />
+        </span>
+        <h1 className="mt-4 text-3xl font-extrabold text-slate-900">Certificate Verification Portal</h1>
+        <p className="mt-2 text-sm text-slate-500">Enter a unique verification code to validate authentic course completion.</p>
+      </div>
+
+      <div className="mt-8 rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-900/5">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => { setCode(e.target.value); setSearched(false); }}
+            placeholder="e.g. EDU-1234-5678"
+            className="flex-1 rounded-xl bg-slate-50 px-4 py-3 font-mono text-sm uppercase ring-1 ring-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <Button icon="search" onClick={() => setSearched(true)}>
+            Verify
+          </Button>
+        </div>
+
+        {searched && (
+          <div className="mt-6 border-t border-slate-100 pt-6">
+            {cert && course && student ? (
+              <div className="rounded-xl bg-emerald-50 p-5 ring-1 ring-emerald-200 text-left">
+                <div className="flex items-center gap-2 text-emerald-800 font-bold text-base">
+                  <Icon name="check-circle" className="h-5 w-5 text-emerald-600" />
+                  Authentic Verified Certificate
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 text-xs">
+                  <div>
+                    <span className="font-semibold text-slate-500">Recipient:</span>
+                    <p className="font-bold text-slate-900 text-sm">{student.name}</p>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-500">Course:</span>
+                    <p className="font-bold text-slate-900 text-sm">{course.title}</p>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-500">Instructor:</span>
+                    <p className="font-bold text-slate-900">{teacher?.name ?? 'Instructor'}</p>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-500">Date Awarded:</span>
+                    <p className="font-bold text-slate-900">{fmtDate(cert.issuedAt)}</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl bg-rose-50 p-5 ring-1 ring-rose-200 text-rose-800 text-sm font-medium">
+                No certificate found matching code &ldquo;{code}&rdquo;. Please verify the characters and try again.
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
