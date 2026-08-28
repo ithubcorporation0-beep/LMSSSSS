@@ -790,17 +790,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const deleteUser = useCallback((userId: string) => {
-    if (userId === DEMO_ADMIN_ID || userId === DEMO_TEACHER_ID || userId === DEMO_STUDENT_ID) {
-      return { ok: false, reason: 'Protected demo system account cannot be deleted.' };
-    }
     setData((d) => ({
       ...d,
       users: d.users.filter((u) => u.id !== userId),
+      courses: d.courses.map((c) => (c.teacherId === userId ? { ...c, teacherId: d.users.find((u) => u.id !== userId)?.id ?? '' } : c)),
       enrolments: d.enrolments.filter((e) => e.studentId !== userId),
       certificates: d.certificates.filter((c) => c.studentId !== userId),
+      wishlist: d.wishlist.filter((w) => w.userId !== userId),
+      notes: d.notes.filter((n) => n.userId !== userId),
+      reviews: d.reviews.filter((r) => r.studentId !== userId),
     }));
+    if (activeUserId === userId) {
+      setActiveUserId(null);
+    }
     return { ok: true };
-  }, []);
+  }, [activeUserId]);
 
   const setUserRole = useCallback((userId: string, role: Role) => {
     setData((d) => ({
@@ -836,12 +840,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteCategory = useCallback(
     (categoryId: string) => {
-      const inUse = data.courses.some((c) => c.categoryId === categoryId);
-      if (inUse) return { ok: false, reason: 'Category has courses assigned to it.' };
-      setData((d) => ({ ...d, categories: d.categories.filter((c) => c.id !== categoryId) }));
+      setData((d) => {
+        const remainingCats = d.categories.filter((c) => c.id !== categoryId);
+        const fallbackCatId = remainingCats[0]?.id ?? '';
+        return {
+          ...d,
+          categories: remainingCats,
+          courses: d.courses.map((c) => (c.categoryId === categoryId ? { ...c, categoryId: fallbackCatId } : c)),
+        };
+      });
       return { ok: true };
     },
-    [data.courses],
+    [],
   );
 
   const resetDemo = useCallback(() => {
