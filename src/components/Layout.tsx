@@ -48,7 +48,7 @@ function UserMenu({
 }: {
   onOpenProfile: () => void;
 }) {
-  const { data, currentUser, switchActiveUser, switchRole, logout, resetDemo } = useApp();
+  const { data, currentUser, switchActiveUser, switchRole, logout } = useApp();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -129,9 +129,9 @@ function UserMenu({
             </div>
           </div>
 
-          {/* Role quick switch */}
+          {/* Role switcher for admins/instructors */}
           <div className="p-2">
-            <p className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Switch workspace</p>
+            <p className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Workspace Mode</p>
             {(['student', 'teacher', 'admin'] as Role[]).map((r) => {
               const m = ROLE_META[r];
               const active = r === currentUser.role;
@@ -161,9 +161,9 @@ function UserMenu({
             })}
           </div>
 
-          {/* Switch existing accounts */}
+          {/* Switch Account */}
           <div className="border-t border-slate-100 p-2">
-            <p className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Available Accounts</p>
+            <p className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Switch Account</p>
             <div className="max-h-36 overflow-y-auto space-y-1">
               {data.users.map((u) => {
                 const isSelected = u.id === currentUser.id;
@@ -188,23 +188,6 @@ function UserMenu({
                 );
               })}
             </div>
-          </div>
-
-          {/* Reset platform */}
-          <div className="border-t border-slate-100 p-2">
-            <button
-              role="menuitem"
-              onClick={() => {
-                if (window.confirm('Reset all platform courses and progress back to factory defaults?')) {
-                  resetDemo();
-                  setOpen(false);
-                }
-              }}
-              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
-            >
-              <Icon name="reset" className="h-3.5 w-3.5" />
-              Reset Platform Data
-            </button>
           </div>
         </div>
       )}
@@ -317,7 +300,7 @@ function Header({
                 Sign In
               </Button>
               <Button size="sm" icon="sparkles" onClick={onOpenAuth}>
-                Get Started
+                Get Full Access
               </Button>
             </div>
           )}
@@ -464,8 +447,8 @@ function ProfileModalWrapper({ open, onClose }: { open: boolean; onClose: () => 
 export function AuthModal() {
   const { authModalOpen, closeAuthModal, login, register } = useApp();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('student@eduflow.io');
+  const [password, setPassword] = useState('demo123');
   const [name, setName] = useState('');
   const [headline, setHeadline] = useState('');
   const [role, setRole] = useState<Role>('student');
@@ -484,12 +467,12 @@ export function AuthModal() {
     if (mode === 'signin') {
       const res = login(email, password);
       if (!res.ok) {
-        setError(res.error ?? 'Invalid email or password. Use demo account: student@eduflow.io / demo123');
+        setError(res.error ?? 'Invalid credentials. Please verify your email and password.');
         return;
       }
     } else {
       if (!name.trim()) {
-        setError('Please provide your name');
+        setError('Please provide your full name');
         return;
       }
       if (!email.trim() || !email.includes('@')) {
@@ -506,29 +489,29 @@ export function AuthModal() {
     }
   };
 
-  const handleQuickLogin = (demoEmail: string) => {
-    setEmail(demoEmail);
+  const handleQuickLogin = (userEmail: string) => {
+    setEmail(userEmail);
     setPassword('demo123');
-    login(demoEmail, 'demo123');
+    login(userEmail, 'demo123');
   };
 
   return (
-    <Modal open={authModalOpen} onClose={closeAuthModal} title={mode === 'signin' ? 'Sign In to EduFlow' : 'Create an EduFlow Account'}>
+    <Modal open={authModalOpen} onClose={closeAuthModal} title={mode === 'signin' ? 'Sign in to EduFlow' : 'Create an EduFlow Account'}>
       <div className="p-6">
-        {/* Dedicated 1-Click Demo Student Banner */}
-        <div className="mb-6 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 p-4 text-white shadow-lift">
+        {/* Fast Access Box */}
+        <div className="mb-6 rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-700 p-5 text-white shadow-lift">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white shadow-sm">
               <Icon name="sparkles" className="h-4 w-4" />
             </span>
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-100">Ready-To-Use Demo Account</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-100">Instant Student Access</span>
           </div>
           <p className="mt-2 text-xs leading-relaxed text-indigo-100">
-            Sign in instantly to unlock all video lessons, quizzes, and personal notes.
+            Sign in with the verified student account to immediately unlock all videos, quizzes, lecture notes, and certificates.
           </p>
-          <div className="mt-3 flex items-center justify-between rounded-xl bg-black/20 px-3 py-2 text-xs font-mono">
+          <div className="mt-3 flex items-center justify-between rounded-xl bg-black/25 px-3.5 py-2 text-xs font-mono">
             <div>
-              <p className="text-indigo-200 text-[10px] uppercase font-sans font-bold">Demo Student Email</p>
+              <p className="text-indigo-200 text-[10px] uppercase font-sans font-bold">Email</p>
               <p className="font-bold text-white">student@eduflow.io</p>
             </div>
             <div className="text-right">
@@ -542,7 +525,7 @@ export function AuthModal() {
             icon="zap"
             onClick={() => handleQuickLogin('student@eduflow.io')}
           >
-            ⚡ 1-Click Sign In as Demo Student
+            Sign In with student@eduflow.io
           </Button>
         </div>
 
@@ -560,7 +543,7 @@ export function AuthModal() {
             onClick={() => { setMode('signup'); setError(''); }}
             className={cn('flex-1 rounded-lg py-1.5 text-xs font-bold transition', mode === 'signup' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900')}
           >
-            Register New Account
+            Create New Account
           </button>
         </div>
 
@@ -594,17 +577,17 @@ export function AuthModal() {
           </Field>
 
           <Field label="Password">
-            <TextInput value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="demo123" required />
+            <TextInput value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="••••••••" required />
           </Field>
 
           <Button className="w-full mt-2" icon={mode === 'signin' ? 'log-in' : 'user-plus'} type="submit">
-            {mode === 'signin' ? 'Sign In & Open Course' : 'Create Free Account & Open Course'}
+            {mode === 'signin' ? 'Sign In & Unlock Courses' : 'Create Free Account & Unlock'}
           </Button>
         </form>
 
-        {/* Other Persona Shortcuts */}
+        {/* Other Platform Accounts */}
         <div className="mt-5 border-t border-slate-100 pt-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Other Demo Personas</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Other Accounts</p>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button
               type="button"

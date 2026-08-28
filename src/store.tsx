@@ -285,7 +285,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: 'No account found with this email address.' };
       }
       if (password && user.password && user.password !== password.trim()) {
-        return { ok: false, error: 'Incorrect password. (Try "demo123" for demo accounts)' };
+        return { ok: false, error: 'Incorrect password. Please check your credentials and try again.' };
       }
 
       setActiveUserId(user.id);

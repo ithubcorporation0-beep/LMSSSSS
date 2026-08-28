@@ -27,16 +27,16 @@ export function AuthRequiredGate({
       <h2 className="mt-5 text-2xl font-extrabold text-slate-900 sm:text-3xl">{title}</h2>
       <p className="mt-2 text-sm text-slate-500 leading-relaxed max-w-md mx-auto">{description}</p>
 
-      {/* Demo Credentials Card */}
+      {/* Quick Access Card */}
       <div className="mt-8 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 p-5 text-white shadow-lift text-left">
         <div className="flex items-center gap-2">
           <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/20 text-white">
             <Icon name="sparkles" className="h-3.5 w-3.5" />
           </span>
-          <span className="text-xs font-bold uppercase tracking-wider text-indigo-100">Demo Student Credentials</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-indigo-100">Student Account Access</span>
         </div>
         <p className="mt-2 text-xs leading-relaxed text-indigo-100">
-          Use the pre-configured demo student account or click the button below to sign in instantly.
+          Sign in with the verified student account to immediately unlock all video lessons, lecture notes, quizzes, and certificates.
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-black/20 p-2.5 font-mono text-xs">
           <div>
@@ -54,13 +54,13 @@ export function AuthRequiredGate({
           icon="zap"
           onClick={() => login('student@eduflow.io', 'demo123')}
         >
-          ⚡ Instant Sign In with Demo Account
+          Sign In with student@eduflow.io
         </Button>
       </div>
 
       <div className="mt-6 flex flex-wrap justify-center gap-3">
         <Button size="lg" icon="log-in" onClick={() => openAuthModal(intendedCourseId)}>
-          Sign In / Register
+          Sign In with Another Account
         </Button>
         <Button size="lg" variant="secondary" onClick={() => navigate({ page: 'catalog' })}>
           Browse Course Catalog

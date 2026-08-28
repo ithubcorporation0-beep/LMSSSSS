@@ -563,6 +563,22 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
             ))}
           </div>
 
+          {/* Locked Visitor Alert Banner */}
+          {!enrolled && (
+            <div className="mt-7 rounded-2xl bg-amber-50/80 p-4 border border-amber-200/80 flex items-start gap-3.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                <Icon name="lock" className="h-4 w-4" />
+              </span>
+              <div className="text-xs text-amber-900 leading-relaxed flex-1">
+                <p className="font-bold">Full course access is locked for guest visitors.</p>
+                <p className="mt-0.5 text-amber-800/80">Sign in to unlock all video lessons, quizzes, personal study notes, and the verifiable certificate.</p>
+              </div>
+              <Button size="sm" onClick={handleEnrol} className="shrink-0 text-xs">
+                {currentUser ? 'Enroll Free' : 'Sign In to Unlock'}
+              </Button>
+            </div>
+          )}
+
           {/* What You'll Learn */}
           {course.whatYouLearn.length > 0 && (
             <div className="mt-8 rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-900/5 sm:p-7">
@@ -580,10 +596,19 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
 
           {/* Syllabus / Chapters Breakdown */}
           <div className="mt-8">
-            <h2 className="text-lg font-bold text-slate-900">Curriculum &amp; Chapters</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {course.chapters.length} lessons &middot; {fmtDuration(totalMin)} total runtime &middot; includes quizzes and notes
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Curriculum &amp; Chapters</h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {course.chapters.length} lessons &middot; {fmtDuration(totalMin)} total runtime &middot; quizzes &amp; notes included
+                </p>
+              </div>
+              {!enrolled && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                  <Icon name="lock" className="h-3 w-3" /> Locked (Requires Enrollment)
+                </span>
+              )}
+            </div>
 
             <ol className="mt-4 overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/5">
               {course.chapters.map((chap, i) => {
@@ -612,7 +637,9 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
                             ? 'bg-emerald-500 text-white ring-emerald-500'
                             : chap.freePreview
                               ? 'bg-indigo-50 text-indigo-600 ring-indigo-100'
-                              : 'bg-slate-50 text-slate-400 ring-slate-100',
+                              : enrolled
+                                ? 'bg-slate-50 text-slate-600 ring-slate-200'
+                                : 'bg-slate-50 text-slate-400 ring-slate-100',
                         )}
                       >
                         {isDone ? <Icon name="check" className="h-3.5 w-3.5" strokeWidth={2.4} /> : i + 1}
@@ -622,13 +649,18 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
                           <p className="text-sm font-bold text-slate-900">{chap.title}</p>
                           {chap.freePreview && <Badge tone="sky" icon="play">Free Preview</Badge>}
                           {chap.quiz && <Badge tone="violet" icon="check-square">Quiz</Badge>}
+                          {!enrolled && !chap.freePreview && (
+                            <span className="text-[10px] font-semibold text-slate-400 flex items-center gap-1">
+                              <Icon name="lock" className="h-2.5 w-2.5 text-slate-400" /> Locked
+                            </span>
+                          )}
                         </div>
                         <p className="mt-0.5 truncate text-xs text-slate-400">{chap.description}</p>
                       </div>
                       <span className="text-xs font-semibold text-slate-400">{chap.durationMin} min</span>
                       <Icon
                         name={enrolled || chap.freePreview ? 'chevron-right' : 'lock'}
-                        className={cn('h-4 w-4', chap.freePreview ? 'text-indigo-600' : 'text-slate-300')}
+                        className={cn('h-4 w-4', chap.freePreview ? 'text-indigo-600' : enrolled ? 'text-slate-400' : 'text-slate-300')}
                       />
                     </button>
                   </li>
@@ -718,11 +750,11 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
             ) : (
               <div>
                 <div className="mb-4 text-center">
-                  <span className="text-3xl font-extrabold text-slate-900">Free</span>
+                  <span className="text-3xl font-extrabold text-slate-900">Free Access</span>
                   <span className="ml-2 text-sm font-semibold text-slate-400 line-through">$99</span>
                 </div>
                 <Button size="lg" className="w-full" iconRight="arrow-right" onClick={handleEnrol}>
-                  {currentUser ? 'Enrol Free & Start Learning' : 'Sign In to Enrol & Learn'}
+                  {currentUser ? 'Enroll Free & Start Learning' : 'Sign In to Unlock Full Course'}
                 </Button>
                 <p className="mt-2 text-center text-xs text-slate-400">Lifetime access &middot; Verifiable Certificate included</p>
               </div>
@@ -768,7 +800,7 @@ export function CourseDetailPage({ courseId }: { courseId: string }) {
                   handleEnrol();
                 }}
               >
-                {currentUser ? 'Enrol Free to Unlock All Lessons' : 'Sign In to Unlock All Lessons'}
+                {currentUser ? 'Enroll Free to Unlock All Lessons' : 'Sign In to Unlock All Lessons'}
               </Button>
               <Button variant="ghost" onClick={() => setPreviewChapter(null)}>Close Preview</Button>
             </div>
